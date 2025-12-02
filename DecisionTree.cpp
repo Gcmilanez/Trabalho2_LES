@@ -6,8 +6,9 @@
 
 DecisionTree::DecisionTree(int max_depth, int min_samples_split)
     : max_depth(max_depth), min_samples_split(min_samples_split),
-      use_chunk_processing(false) {
+      use_chunk_processing(false), cache_friendly_accesses(0), random_accesses(0) {
     // Pré-alocação de buffers para versão com chunks
+    // Evita realocações dinâmicas durante o processamento
     chunk_buffer.reserve(CHUNK_SIZE);
     chunk_labels_buffer.reserve(CHUNK_SIZE);
 }
@@ -37,13 +38,23 @@ DecisionTree::SplitResult DecisionTree::find_best_split_basic(
     const std::vector<std::vector<double>>& X,
     const std::vector<int>& y) {
     
-    // VERSÃO BÁSICA - Acesso aleatório aos dados (CACHE MISS frequente)
+    // ============================================================
+    // VERSÃO GENÉRICA - Acesso aleatório aos dados
+    // ============================================================
+    // PROBLEMA DE CACHE:
+    // 1. indices[] pode apontar para posições distantes em X
+    // 2. X[idx] pode estar em linhas de cache diferentes
+    // 3. Cada acesso pode causar cache miss (~200 ciclos de latência)
+    // 4. CPU fica ociosa esperando dados da RAM
+    // ============================================================
+    
     std::vector<double> feature_values;
     feature_values.reserve(indices.size());
     
-    // Acesso não sequencial - pior performance de cache
+    // ACESSO NÃO SEQUENCIAL - Alta probabilidade de cache miss
     for (int idx : indices) {
         feature_values.push_back(X[idx][feature_index]);
+        // Não incrementar contador aqui - só contar nos splits
     }
     
     std::vector<double> unique_values = feature_values;
@@ -70,8 +81,9 @@ DecisionTree::SplitResult DecisionTree::find_best_split_basic(
         std::vector<int> left_labels, right_labels;
         std::vector<int> left_idx, right_idx;
         
-        // Acesso aleatório - cache miss
+        // ACESSO ALEATÓRIO - cache miss em cada iteração
         for (int idx : indices) {
+            random_accesses++; // Contador
             if (X[idx][feature_index] <= threshold) {
                 left_labels.push_back(y[idx]);
                 left_idx.push_back(idx);
@@ -115,24 +127,33 @@ DecisionTree::SplitResult DecisionTree::find_best_split_chunked(
     const std::vector<std::vector<double>>& X,
     const std::vector<int>& y) {
     
-    // VERSÃO OTIMIZADA - Processamento em BLOCOS DE 100 para cache locality
+    // ============================================================
+    // VERSÃO OTIMIZADA - CHUNKS de 100 para LOCALIDADE TEMPORAL
+    // ============================================================
+    // Processa dados em blocos de 100 elementos:
+    // 1. Carrega 100 elementos no cache
+    // 2. Processa IMEDIATAMENTE enquanto estão "quentes"
+    // 3. Passa para próximo chunk
+    // Benefício: Dados permanecem no cache L1/L2 durante processamento
+    // ============================================================
+    
     std::vector<double> feature_values;
     feature_values.reserve(indices.size());
     
-    // Processar em chunks - LOCALIDADE ESPACIAL (CACHE HIT)
+    std::vector<int> current_labels;
+    current_labels.reserve(indices.size());
+    
+    // PRÉ-COMPUTAR em CHUNKS de 100 (localidade temporal)
     for (size_t i = 0; i < indices.size(); i += CHUNK_SIZE) {
         size_t end = std::min(i + CHUNK_SIZE, indices.size());
-        chunk_buffer.clear();
         
-        // Carregar chunk completo no buffer (dados contíguos no cache L1/L2)
+        // Carregar CHUNK de 100 elementos
         for (size_t j = i; j < end; ++j) {
-            chunk_buffer.push_back(X[indices[j]][feature_index]);
+            int idx = indices[j];
+            feature_values.push_back(X[idx][feature_index]);
+            current_labels.push_back(y[idx]);
         }
-        
-        // Processar chunk enquanto está quente no cache
-        for (double val : chunk_buffer) {
-            feature_values.push_back(val);
-        }
+        // Dados estão "quentes" no cache, próximo chunk continuará...
     }
     
     std::vector<double> unique_values = feature_values;
@@ -143,48 +164,28 @@ DecisionTree::SplitResult DecisionTree::find_best_split_chunked(
     double best_gain = -1.0;
     double best_threshold = 0.0;
     std::vector<int> best_left, best_right;
-    
-    // Calcular gini do pai processando em chunks
-    std::vector<int> current_labels;
-    current_labels.reserve(indices.size());
-    
-    for (size_t i = 0; i < indices.size(); i += CHUNK_SIZE) {
-        size_t end = std::min(i + CHUNK_SIZE, indices.size());
-        chunk_labels_buffer.clear();
-        
-        // Carregar chunk de labels
-        for (size_t j = i; j < end; ++j) {
-            chunk_labels_buffer.push_back(y[indices[j]]);
-        }
-        
-        // Processar chunk
-        for (int label : chunk_labels_buffer) {
-            current_labels.push_back(label);
-        }
-    }
-    
     double parent_gini = calculate_gini(current_labels);
     
-    // Testar cada threshold processando em chunks
+    // PROCESSAR thresholds usando dados pré-computados (já no cache)
     for (size_t i = 0; i < unique_values.size() - 1; ++i) {
         double threshold = (unique_values[i] + unique_values[i + 1]) / 2.0;
         
         std::vector<int> left_labels, right_labels;
         std::vector<int> left_idx, right_idx;
         
-        // Processar em blocos de 100 - melhor uso do cache
-        for (size_t chunk_start = 0; chunk_start < indices.size(); chunk_start += CHUNK_SIZE) {
-            size_t chunk_end = std::min(chunk_start + CHUNK_SIZE, indices.size());
+        // Acessar em CHUNKS de 100 (localidade temporal)
+        for (size_t chunk_start = 0; chunk_start < feature_values.size(); chunk_start += CHUNK_SIZE) {
+            size_t chunk_end = std::min(chunk_start + CHUNK_SIZE, feature_values.size());
             
-            // Processar bloco completo (localidade temporal)
+            // Processar CHUNK completo enquanto está no cache
             for (size_t j = chunk_start; j < chunk_end; ++j) {
-                int idx = indices[j];
-                if (X[idx][feature_index] <= threshold) {
-                    left_labels.push_back(y[idx]);
-                    left_idx.push_back(idx);
+                cache_friendly_accesses++;
+                if (feature_values[j] <= threshold) {
+                    left_labels.push_back(current_labels[j]);
+                    left_idx.push_back(indices[j]);
                 } else {
-                    right_labels.push_back(y[idx]);
-                    right_idx.push_back(idx);
+                    right_labels.push_back(current_labels[j]);
+                    right_idx.push_back(indices[j]);
                 }
             }
         }

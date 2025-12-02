@@ -1,0 +1,40 @@
+# Executáveis
+*.exe
+*.out
+*.app
+
+# Datasets
+*.csv
+covertype_dataset.csv
+iris_dataset.csv
+
+# Arquivos de saída
+output/
+results.csv
+
+# Arquivos temporários C++
+*.o
+*.obj
+*.d
+*.ilk
+*.pdb
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
