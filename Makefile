@@ -1,77 +1,125 @@
 # ============================================================
-#   Makefile para compilar:
-#      - Random Forest Baseline
-#      - Random Forest Otimizada
-#
-#   O main original (main.cpp) foi removido da build.
+#   Makefile - Random Forest Baseline vs Otimizada
+#   - Treino + Salvamento
+#   - Load + Predicao
 # ============================================================
 
-CXX       := g++
-CXXFLAGS  := -std=c++17 -O3 -Wall -Wextra -march=native
-LDFLAGS   := 
+CXX      := g++
+CXXFLAGS := -std=c++17 -O3 -Wall -Wextra -march=native
+LDFLAGS  := 
 
-SRC_DIR   := .
-OBJ_DIR   := obj
+OBJ_DIR  := obj
 
 $(shell mkdir -p $(OBJ_DIR))
 
 # ------------------------------------------------------------
-# Fontes comuns às duas florestas
-# DecisionTree.cpp é compartilhado
-# DataLoader é header-only e NÃO entra aqui
+# Objetos base (compartilhados)
 # ------------------------------------------------------------
-COMMON_SRC := \
-    $(SRC_DIR)/DecisionTree.cpp
+
+BASE_OBJS := \
+	$(OBJ_DIR)/DecisionTree.o \
+	$(OBJ_DIR)/RandomForestBaseline.o \
+	$(OBJ_DIR)/RandomForestOptimized.o
 
 # ------------------------------------------------------------
-# 1) Executável – Random Forest Baseline
+# 1) Executavel - Treino Baseline
 # ------------------------------------------------------------
-FOREST_BASELINE_SRC := \
-    $(COMMON_SRC) \
-    $(SRC_DIR)/RandomForestBaseline.cpp \
-    $(SRC_DIR)/main_forest_baseline.cpp
 
-FOREST_BASELINE_OBJ := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(FOREST_BASELINE_SRC))
+FOREST_BASELINE_TRAIN_OBJS := \
+	$(OBJ_DIR)/DecisionTree.o \
+	$(OBJ_DIR)/RandomForestBaseline.o \
+	$(OBJ_DIR)/main_forest_baseline.o
 
-forest_baseline: $(FOREST_BASELINE_OBJ)
+forest_baseline_train: $(FOREST_BASELINE_TRAIN_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
-	@echo "✔ Executável gerado: ./forest_baseline"
+	@echo "✔ Executavel gerado: ./forest_baseline_train"
 
 # ------------------------------------------------------------
-# 2) Executável – Random Forest Otimizada
+# 2) Executavel - Treino Otimizado
 # ------------------------------------------------------------
-FOREST_OPTIMIZED_SRC := \
-    $(COMMON_SRC) \
-    $(SRC_DIR)/RandomForestOptimized.cpp \
-    $(SRC_DIR)/main_forest_optimized.cpp
 
-FOREST_OPTIMIZED_OBJ := $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(FOREST_OPTIMIZED_SRC))
+FOREST_OPTIMIZED_TRAIN_OBJS := \
+	$(OBJ_DIR)/DecisionTree.o \
+	$(OBJ_DIR)/RandomForestOptimized.o \
+	$(OBJ_DIR)/main_forest_optimized.o
 
-forest_optimized: $(FOREST_OPTIMIZED_OBJ)
+forest_optimized_train: $(FOREST_OPTIMIZED_TRAIN_OBJS)
 	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
-	@echo "✔ Executável gerado: ./forest_optimized"
+	@echo "✔ Executavel gerado: ./forest_optimized_train"
 
 # ------------------------------------------------------------
-# Regra geral de compilação
+# 3) Executavel - Predicao Baseline (load modelo)
 # ------------------------------------------------------------
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+FOREST_BASELINE_PREDICT_OBJS := \
+	$(OBJ_DIR)/DecisionTree.o \
+	$(OBJ_DIR)/RandomForestBaseline.o \
+	$(OBJ_DIR)/main_predict_baseline.o
+
+forest_baseline_predict: $(FOREST_BASELINE_PREDICT_OBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "✔ Executavel gerado: ./forest_baseline_predict"
 
 # ------------------------------------------------------------
-# "make all"
+# 4) Executavel - Predicao Otimizada (load modelo)
 # ------------------------------------------------------------
-all: forest_baseline forest_optimized
+
+FOREST_OPTIMIZED_PREDICT_OBJS := \
+	$(OBJ_DIR)/DecisionTree.o \
+	$(OBJ_DIR)/RandomForestOptimized.o \
+	$(OBJ_DIR)/main_predict_optimized.o
+
+forest_optimized_predict: $(FOREST_OPTIMIZED_PREDICT_OBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "✔ Executavel gerado: ./forest_optimized_predict"
+
+# ------------------------------------------------------------
+# Regras de compilacao dos .cpp -> obj/
+# ------------------------------------------------------------
+
+$(OBJ_DIR)/DecisionTree.o: DecisionTree.cpp DecisionTree.h
+	$(CXX) $(CXXFLAGS) -c DecisionTree.cpp -o $@
+
+$(OBJ_DIR)/RandomForestBaseline.o: RandomForestBaseline.cpp RandomForestBaseline.h DecisionTree.h
+	$(CXX) $(CXXFLAGS) -c RandomForestBaseline.cpp -o $@
+
+$(OBJ_DIR)/RandomForestOptimized.o: RandomForestOptimized.cpp RandomForestOptimized.h DecisionTree.h
+	$(CXX) $(CXXFLAGS) -c RandomForestOptimized.cpp -o $@
+
+$(OBJ_DIR)/main_forest_baseline.o: main_forest_baseline.cpp RandomForestBaseline.h DataLoader.h
+	$(CXX) $(CXXFLAGS) -c main_forest_baseline.cpp -o $@
+
+$(OBJ_DIR)/main_forest_optimized.o: main_forest_optimized.cpp RandomForestOptimized.h DataLoader.h
+	$(CXX) $(CXXFLAGS) -c main_forest_optimized.cpp -o $@
+
+$(OBJ_DIR)/main_predict_baseline.o: main_predict_baseline.cpp RandomForestBaseline.h DataLoader.h
+	$(CXX) $(CXXFLAGS) -c main_predict_baseline.cpp -o $@
+
+$(OBJ_DIR)/main_predict_optimized.o: main_predict_optimized.cpp RandomForestOptimized.h DataLoader.h
+	$(CXX) $(CXXFLAGS) -c main_predict_optimized.cpp -o $@
+
+# ------------------------------------------------------------
+# Alvo padrao: compilar tudo
+# ------------------------------------------------------------
+
+all: forest_baseline_train forest_optimized_train \
+     forest_baseline_predict forest_optimized_predict
 	@echo "============================================================"
-	@echo " Executáveis compilados com sucesso!"
-	@echo "  → ./forest_baseline"
-	@echo "  → ./forest_optimized"
+	@echo " Executaveis compilados com sucesso!"
+	@echo "  → ./forest_baseline_train"
+	@echo "  → ./forest_optimized_train"
+	@echo "  → ./forest_baseline_predict"
+	@echo "  → ./forest_optimized_predict"
 	@echo "============================================================"
 
 # ------------------------------------------------------------
 # Limpeza
 # ------------------------------------------------------------
+
 clean:
-	rm -rf $(OBJ_DIR)/*.o forest_baseline forest_optimized
-	@echo "✔ Arquivos de compilação removidos."
+	rm -rf $(OBJ_DIR)/*.o \
+		forest_baseline_train forest_optimized_train \
+		forest_baseline_predict forest_optimized_predict
+	@echo "✔ Arquivos de compilacao removidos."
 
 .PHONY: all clean

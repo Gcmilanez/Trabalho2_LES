@@ -1,133 +1,148 @@
-// RandomForestBaseline.cpp
 #include "RandomForestBaseline.h"
+#include <fstream>
+#include <numeric>
 #include <random>
-#include <numeric>  // iota
-#include <algorithm> // max_element
+#include <algorithm>
+#include <unordered_map>
 
-RandomForestBaseline::RandomForestBaseline(
-    int n_trees_,
-    int max_depth_,
-    int min_samples_split_
-) : n_trees(n_trees_),
-    max_depth(max_depth_),
-    min_samples_split(min_samples_split_) {
-
+// ============================================================
+// Construtor
+// ============================================================
+RandomForestBaseline::RandomForestBaseline(int n_trees,
+                                           int max_depth,
+                                           int min_samples_split)
+    : n_trees(n_trees),
+      max_depth(max_depth),
+      min_samples_split(min_samples_split)
+{
     trees.reserve(n_trees);
 }
 
-void RandomForestBaseline::fit(const std::vector<std::vector<double>>& X,
-                               const std::vector<int>& y) {
-    const int n_samples = static_cast<int>(X.size());
-    if (n_samples == 0) return;
-
-    std::vector<int> indices;
-    indices.reserve(n_samples);
-
-    trees.clear();
-
-    for (int t = 0; t < n_trees; ++t) {
-        bootstrap_indices(n_samples, indices);
-
-        // monta subconjunto de dados (implementação simples e "comum")
-        std::vector<std::vector<double>> X_boot;
-        std::vector<int> y_boot;
-        X_boot.reserve(n_samples);
-        y_boot.reserve(n_samples);
-
-        for (int idx : indices) {
-            X_boot.push_back(X[idx]);
-            y_boot.push_back(y[idx]);
-        }
-
-        DecisionTree tree;
-        // TODO: ajustar para a API real da sua DecisionTree:
-        // por ex:
-        // tree.set_max_depth(max_depth);
-        // tree.set_min_samples_split(min_samples_split);
-        // tree.fit(X_boot, y_boot, /*use_chunks=*/false);
-
-        trees.push_back(std::move(tree));
-    }
-}
-
-std::vector<int> RandomForestBaseline::predict(
-    const std::vector<std::vector<double>>& X) const
-{
-    std::vector<int> preds;
-    preds.reserve(X.size());
-
-    vote_buffer.resize(trees.size());
-
-    for (const auto& sample : X) {
-        // predição de todas as árvores
-        for (size_t i = 0; i < trees.size(); ++i) {
-            // TODO: adaptar à API real de predict da sua árvore
-            // Exemplo genérico:
-            std::vector<std::vector<double>> tmp = { sample };
-            int pred = trees[i].predict(tmp)[0];
-            vote_buffer[i] = pred;
-        }
-        preds.push_back(majority_vote(vote_buffer));
-    }
-
-    return preds;
-}
-
-int RandomForestBaseline::predict_one(const std::vector<double>& x) const {
-    vote_buffer.resize(trees.size());
-
-    for (size_t i = 0; i < trees.size(); ++i) {
-        // TODO: adaptar à API real
-        std::vector<std::vector<double>> tmp = { x };
-        int pred = trees[i].predict(tmp)[0];
-        vote_buffer[i] = pred;
-    }
-
-    return majority_vote(vote_buffer);
-}
-
+// ============================================================
+// Bootstrap (amostragem com reposição)
+// ============================================================
 void RandomForestBaseline::bootstrap_indices(int n_samples,
-                                             std::vector<int>& indices) const {
-    indices.clear();
-    indices.reserve(n_samples);
-
-    // RNG simples; você pode fixar seed se quiser reprodutibilidade
+                                             std::vector<int>& out) const
+{
     static thread_local std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<int> dist(0, n_samples - 1);
 
-    for (int i = 0; i < n_samples; ++i) {
-        indices.push_back(dist(gen));
+    out.clear();
+    out.reserve(n_samples);
+
+    for (int i = 0; i < n_samples; i++)
+        out.push_back(dist(gen));
+}
+
+// ============================================================
+// Treino da floresta
+// ============================================================
+void RandomForestBaseline::fit(const std::vector<std::vector<double>>& X,
+                               const std::vector<int>& y)
+{
+    trees.clear();
+    trees.reserve(n_trees);
+
+    int n_samples = X.size();
+    std::vector<int> sample_indices;
+    sample_indices.reserve(n_samples);
+
+    for (int t = 0; t < n_trees; t++)
+    {
+        bootstrap_indices(n_samples, sample_indices);
+
+        // Criar árvore movível
+        DecisionTree tree(max_depth, min_samples_split);
+        tree.fit(X, y, false);
+
+        trees.emplace_back(std::move(tree));  // ← usa movimento, não cópia
     }
 }
 
-int RandomForestBaseline::majority_vote(const std::vector<int>& votes) const {
-    if (votes.empty()) return -1;
+// ============================================================
+// Votação majoritária
+// ============================================================
+int RandomForestBaseline::majority_vote(const std::vector<int>& votes) const
+{
+    std::unordered_map<int, int> freq;
 
-    // conta frequência simples
-    // (se o número de classes for pequeno, dá pra otimizar depois)
-    std::vector<int> sorted = votes;
-    std::sort(sorted.begin(), sorted.end());
+    for (int v : votes)
+        freq[v]++;
 
-    int best_class = sorted[0];
-    int best_count = 1;
-    int current_class = sorted[0];
-    int current_count = 1;
+    int best_class = -1;
+    int best_count = -1;
 
-    for (size_t i = 1; i < sorted.size(); ++i) {
-        if (sorted[i] == current_class) {
-            current_count++;
-        } else {
-            if (current_count > best_count) {
-                best_count = current_count;
-                best_class = current_class;
-            }
-            current_class = sorted[i];
-            current_count = 1;
+    for (auto& kv : freq)
+        if (kv.second > best_count) {
+            best_class = kv.first;
+            best_count = kv.second;
         }
-    }
-    if (current_count > best_count) {
-        best_class = current_class;
-    }
 
     return best_class;
+}
+
+// ============================================================
+// Predição
+// ============================================================
+std::vector<int> RandomForestBaseline::predict(
+    const std::vector<std::vector<double>>& X) const
+{
+    std::vector<int> predictions;
+    predictions.reserve(X.size());
+
+    vote_buffer.resize(n_trees);
+
+    for (const auto& sample : X)
+    {
+        for (int t = 0; t < n_trees; t++)
+            vote_buffer[t] = trees[t].predict_one(sample);
+
+        predictions.push_back(majority_vote(vote_buffer));
+    }
+
+    return predictions;
+}
+
+// ============================================================
+// Salvar modelo
+// ============================================================
+void RandomForestBaseline::save_model(const std::string& filename) const
+{
+    std::ofstream out(filename, std::ios::binary);
+    if (!out)
+        throw std::runtime_error("Erro ao abrir arquivo de modelo para escrita");
+
+    // hiperparâmetros
+    out.write(reinterpret_cast<const char*>(&n_trees), sizeof(n_trees));
+    out.write(reinterpret_cast<const char*>(&max_depth), sizeof(max_depth));
+    out.write(reinterpret_cast<const char*>(&min_samples_split), sizeof(min_samples_split));
+
+    // cada árvore
+    for (const auto& tree : trees)
+        tree.save_model(out);
+}
+
+// ============================================================
+// Carregar modelo
+// ============================================================
+void RandomForestBaseline::load_model(const std::string& filename)
+{
+    std::ifstream in(filename, std::ios::binary);
+    if (!in)
+        throw std::runtime_error("Erro ao abrir arquivo de modelo para leitura");
+
+    // hiperparâmetros
+    in.read(reinterpret_cast<char*>(&n_trees), sizeof(n_trees));
+    in.read(reinterpret_cast<char*>(&max_depth), sizeof(max_depth));
+    in.read(reinterpret_cast<char*>(&min_samples_split), sizeof(min_samples_split));
+
+    // recriar floresta
+    trees.clear();
+    trees.reserve(n_trees);
+
+    for (int t = 0; t < n_trees; t++) {
+        DecisionTree tree(max_depth, min_samples_split);
+        tree.load_model(in);
+        trees.emplace_back(std::move(tree)); // ← movimento
+    }
 }
