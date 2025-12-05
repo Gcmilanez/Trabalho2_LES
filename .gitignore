@@ -4,13 +4,11 @@
 *.app
 
 # Datasets
-*.csv
 covertype_dataset.csv
 iris_dataset.csv
 
 # Arquivos de saída
 output/
-results.csv
 
 # Arquivos temporários C++
 *.o
