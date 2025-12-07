@@ -59,7 +59,7 @@ foreach ($size in $sizes) {
     Write-Host ""
     
     # Log geral
-    "BASELINE $sizeLabel : $([math]::Round($duration, 2))s" | Out-File $logFile -Append
+    "BASELINE ${sizeLabel} : $([math]::Round($duration, 2))s" | Out-File $logFile -Append
     
     # ------------------------------------------------------------
     # 2. OTIMIZADO
@@ -80,7 +80,7 @@ foreach ($size in $sizes) {
     Write-Host ""
     
     # Log geral
-    "OTIMIZADO $sizeLabel: $([math]::Round($duration, 2))s" | Out-File $logFile -Append
+    "OTIMIZADO ${sizeLabel}: $([math]::Round($duration, 2))s" | Out-File $logFile -Append
     "" | Out-File $logFile -Append
 }
 
