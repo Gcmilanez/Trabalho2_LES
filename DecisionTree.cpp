@@ -71,15 +71,21 @@ DecisionTree& DecisionTree::operator=(DecisionTree&& other) noexcept
 // ============================================================
 void DecisionTree::fit(const std::vector<std::vector<double>>& X,
                        const std::vector<int>& y,
-                       bool use_chunks)
+                       bool use_chunks,
+                       const std::vector<int>* bootstrap_indices)
 {
     use_chunk_processing = use_chunks;
     reset_access_counters();
 
-    std::vector<int> indices(X.size());
-    std::iota(indices.begin(), indices.end(), 0);
-
-    root = build_tree(X, y, indices, 0);
+    if (bootstrap_indices) {
+        // Usa índices fornecidos (bootstrap)
+        root = build_tree(X, y, *bootstrap_indices, 0);
+    } else {
+        // Cria índices padrão (todos)
+        std::vector<int> indices(X.size());
+        std::iota(indices.begin(), indices.end(), 0);
+        root = build_tree(X, y, indices, 0);
+    }
 }
 
 // ============================================================
@@ -309,40 +315,42 @@ void DecisionTree::find_best_split_chunked(
     double parent_gini)
 {
     const int n_features = X[0].size();
+    const size_t n_samples = indices.size();
     double best_gain = 1e-12;
 
     // Para cada feature
     for (int f = 0; f < n_features; f++) {
         
-        // PRE-COMPUTAR valores em CHUNKS
+        // carrega valores em chunks (uma vez só)
         std::vector<double> feature_values;
-        feature_values.reserve(indices.size());
+        feature_values.reserve(n_samples);
         
-        // Processa em blocos de chunk_size para manter dados no cache
-        for (size_t chunk_start = 0; chunk_start < indices.size(); chunk_start += chunk_size) {
-            size_t chunk_end = std::min(chunk_start + chunk_size, indices.size());
+        for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
+            size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
             
-            // Carrega CHUNK de indices no cache
+            // Carrega chunk de 100 valores - dados ficam quentes na cache
             for (size_t i = chunk_start; i < chunk_end; i++) {
                 int idx = indices[i];
                 feature_values.push_back(X[idx][f]);
             }
-            // Dados estão "quentes" no cache aqui!
+            // Chunk processado enquanto está quente (próximas iterações do loop)
         }
         
         // Ordena para encontrar thresholds
         std::vector<double> sorted_values = feature_values;
         std::sort(sorted_values.begin(), sorted_values.end());
         
-        // Testa thresholds entre valores consecutivos
+        // Testa thresholds - usa feature_values já carregado
         for (size_t i = 0; i < sorted_values.size() - 1; i++) {
             if (sorted_values[i] == sorted_values[i+1]) continue;
             
             double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
             std::vector<int> l, r;
+            l.reserve(n_samples);
+            r.reserve(n_samples);
             
-            // Usa valores pre-computados (já no cache)
-            for (size_t j = 0; j < indices.size(); j++) {
+            // Usa valores pré-carregados (acesso sequencial rápido)
+            for (size_t j = 0; j < n_samples; j++) {
                 if (feature_values[j] <= thr)
                     l.push_back(indices[j]);
                 else
@@ -351,21 +359,22 @@ void DecisionTree::find_best_split_chunked(
             
             if (l.empty() || r.empty())
                 continue;
-
+            
+            // Calcula gini
             auto build_vec = [&](const std::vector<int>& ids) {
                 std::vector<int> temp;
                 temp.reserve(ids.size());
-                for (int i : ids) temp.push_back(y[i]);
+                for (int id : ids) temp.push_back(y[id]);
                 return temp;
             };
-
+            
             double g_l = calculate_gini(build_vec(l));
             double g_r = calculate_gini(build_vec(r));
-
+            
             double g = parent_gini -
-                (l.size() / (double)indices.size()) * g_l -
-                (r.size() / (double)indices.size()) * g_r;
-
+                (l.size() / (double)n_samples) * g_l -
+                (r.size() / (double)n_samples) * g_r;
+            
             if (g > best_gain) {
                 best_gain = g;
                 best_feature = f;

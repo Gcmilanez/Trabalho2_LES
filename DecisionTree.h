@@ -44,7 +44,8 @@ public:
     // ------------------------------
     void fit(const std::vector<std::vector<double>>& X,
              const std::vector<int>& y,
-             bool use_chunks);
+             bool use_chunks,
+             const std::vector<int>* bootstrap_indices = nullptr);
 
     // ------------------------------
     // PREDIÇÃO

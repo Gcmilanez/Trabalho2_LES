@@ -51,11 +51,11 @@ void RandomForestBaseline::fit(const std::vector<std::vector<double>>& X,
     {
         bootstrap_indices(n_samples, sample_indices);
 
-        // Criar árvore movível
+        // Criar árvore usando índices diretamente (sem copiar dados)
         DecisionTree tree(max_depth, min_samples_split);
-        tree.fit(X, y, false);
+        tree.fit(X, y, false, &sample_indices);
 
-        trees.emplace_back(std::move(tree));  // ← usa movimento, não cópia
+        trees.emplace_back(std::move(tree));
     }
 }
 

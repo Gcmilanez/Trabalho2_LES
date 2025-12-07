@@ -67,11 +67,11 @@ void RandomForestOptimized::fit(const std::vector<std::vector<double>>& X,
         // reorganiza índices para esta árvore
         make_cache_friendly_indices(n_samples, t, temp_indices);
 
-        // cria a árvore com chunk_size configurado corretamente
+        // Criar árvore usando índices diretamente (sem copiar dados)
         DecisionTree tree(max_depth, min_samples_split, chunk_size);
-        tree.fit(X, y, true); // ← usa chunked = otimizado
+        tree.fit(X, y, true, &temp_indices); // ← usa chunked = otimizado
 
-        trees.emplace_back(std::move(tree)); // ← movimento, não cópia
+        trees.emplace_back(std::move(tree));
     }
 }
 

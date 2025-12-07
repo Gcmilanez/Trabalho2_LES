@@ -3,9 +3,11 @@
 *.out
 *.app
 
-# Datasets
-covertype_dataset.csv
-iris_dataset.csv
+# Datasets - ignorar todos exceto os principais
+*.csv
+!optdigits.csv
+!adult_dataset.csv
+!skin_segmentation.csv
 
 # Arquivos de saída
 output/
