@@ -242,10 +242,22 @@ void DecisionTree::find_best_split_basic(
     const int n_features = X[0].size();
     double best_gain = 1e-12;
 
+    // Para cada feature
     for (int f = 0; f < n_features; f++) {
+        
+        // Coletar valores únicos desta feature
+        std::vector<double> values;
+        values.reserve(indices.size());
         for (int idx : indices) {
-
-            double thr = X[idx][f];
+            values.push_back(X[idx][f]);
+        }
+        std::sort(values.begin(), values.end());
+        
+        // Testar thresholds entre valores únicos consecutivos
+        for (size_t i = 0; i < values.size() - 1; i++) {
+            if (values[i] == values[i+1]) continue;  // Skip duplicados
+            
+            double thr = (values[i] + values[i+1]) / 2.0;
             std::vector<int> l, r;
 
             for (int id : indices) {
@@ -284,7 +296,7 @@ void DecisionTree::find_best_split_basic(
 }
 
 // ============================================================
-// Split com chunks (versão simplificada)
+// Split com chunks - OTIMIZADO para localidade temporal
 // ============================================================
 void DecisionTree::find_best_split_chunked(
     const std::vector<std::vector<double>>& X,
@@ -299,25 +311,44 @@ void DecisionTree::find_best_split_chunked(
     const int n_features = X[0].size();
     double best_gain = 1e-12;
 
-    for (int fchunk = 0; fchunk < n_features; fchunk += chunk_size) {
-        int fend = std::min(fchunk + chunk_size, n_features);
-
-        for (int f = fchunk; f < fend; f++) {
-
-            // threshold = média dos valores
-            double avg = 0.0;
-            for (int idx : indices)
-                avg += X[idx][f];
-            avg /= indices.size();
-
-            std::vector<int> l, r;
-            for (int id : indices) {
-                if (X[id][f] <= avg)
-                    l.push_back(id);
-                else
-                    r.push_back(id);
+    // Para cada feature
+    for (int f = 0; f < n_features; f++) {
+        
+        // PRE-COMPUTAR valores em CHUNKS
+        std::vector<double> feature_values;
+        feature_values.reserve(indices.size());
+        
+        // Processa em blocos de chunk_size para manter dados no cache
+        for (size_t chunk_start = 0; chunk_start < indices.size(); chunk_start += chunk_size) {
+            size_t chunk_end = std::min(chunk_start + chunk_size, indices.size());
+            
+            // Carrega CHUNK de indices no cache
+            for (size_t i = chunk_start; i < chunk_end; i++) {
+                int idx = indices[i];
+                feature_values.push_back(X[idx][f]);
             }
-
+            // Dados estão "quentes" no cache aqui!
+        }
+        
+        // Ordena para encontrar thresholds
+        std::vector<double> sorted_values = feature_values;
+        std::sort(sorted_values.begin(), sorted_values.end());
+        
+        // Testa thresholds entre valores consecutivos
+        for (size_t i = 0; i < sorted_values.size() - 1; i++) {
+            if (sorted_values[i] == sorted_values[i+1]) continue;
+            
+            double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
+            std::vector<int> l, r;
+            
+            // Usa valores pre-computados (já no cache)
+            for (size_t j = 0; j < indices.size(); j++) {
+                if (feature_values[j] <= thr)
+                    l.push_back(indices[j]);
+                else
+                    r.push_back(indices[j]);
+            }
+            
             if (l.empty() || r.empty())
                 continue;
 
@@ -338,7 +369,7 @@ void DecisionTree::find_best_split_chunked(
             if (g > best_gain) {
                 best_gain = g;
                 best_feature = f;
-                best_threshold = avg;
+                best_threshold = thr;
                 left_idx = l;
                 right_idx = r;
             }

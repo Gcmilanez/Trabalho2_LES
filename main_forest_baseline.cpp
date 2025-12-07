@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     if (argc >= 5) {
         model_path = argv[4];
     } else {
-        model_path = "baseline_" + get_filename_only(dataset_path) + ".model";
+        model_path = "models/baseline_" + get_filename_only(dataset_path) + ".model";
     }
 
     std::cout << "Dataset     : " << dataset_path << "\n";

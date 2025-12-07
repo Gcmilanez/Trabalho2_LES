@@ -10,6 +10,12 @@ iris_dataset.csv
 # Arquivos de saída
 output/
 
+# Resultados
+results/
+
+# Modelos treinados
+models/*.model
+
 # Arquivos temporários C++
 *.o
 *.obj

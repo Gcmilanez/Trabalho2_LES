@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     if (argc >= 5) {
         model_path = argv[4];
     } else {
-        model_path = "optimized_" + get_filename_only(dataset_path) + ".model";
+        model_path = "models/optimized_" + get_filename_only(dataset_path) + ".model";
     }
 
     std::cout << "Dataset     : " << dataset_path << "\n";
@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Hiperparâmetros (ajuste conforme seu projeto)
-    const int n_trees           = 32;
+    // Hiperparâmetros (mesmos do baseline para comparação justa)
+    const int n_trees           = 50;
     const int max_depth         = 8;
     const int min_samples_split = 5;
     const int chunk_size        = 100;
