@@ -5,7 +5,7 @@
 
 # Datasets - ignorar todos exceto os principais
 *.csv
-!optdigits.csv
+
 !adult_dataset.csv
 !skin_segmentation.csv
 
@@ -13,7 +13,7 @@
 output/
 
 # Resultados
-results/
+
 
 # Modelos treinados
 models/*.model
