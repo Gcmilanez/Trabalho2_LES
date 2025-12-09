@@ -251,26 +251,30 @@ void DecisionTree::find_best_split_basic(
     // Para cada feature
     for (int f = 0; f < n_features; f++) {
         
-        // Coletar valores únicos desta feature
-        std::vector<double> values;
-        values.reserve(indices.size());
+        // Coletar valores desta feature
+        std::vector<double> feature_values;
+        feature_values.reserve(indices.size());
         for (int idx : indices) {
-            values.push_back(X[idx][f]);
+            feature_values.push_back(X[idx][f]);
         }
-        std::sort(values.begin(), values.end());
+
+        // Ordena CÓPIA para encontrar thresholds
+        std::vector<double> sorted_values = feature_values;
+        std::sort(sorted_values.begin(), sorted_values.end());
         
         // Testar thresholds entre valores únicos consecutivos
-        for (size_t i = 0; i < values.size() - 1; i++) {
-            if (values[i] == values[i+1]) continue;  // Skip duplicados
+        for (size_t i = 0; i < sorted_values.size() - 1; i++) {
+            if (sorted_values[i] == sorted_values[i+1]) continue;  // Skip duplicados
             
-            double thr = (values[i] + values[i+1]) / 2.0;
+            double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
             std::vector<int> l, r;
 
-            for (int id : indices) {
-                if (X[id][f] <= thr)
-                    l.push_back(id);
+            // Usa valores pré-carregados
+            for (size_t j = 0; j < indices.size(); j++) {
+                if (feature_values[j] <= thr)
+                    l.push_back(indices[j]);
                 else
-                    r.push_back(id);
+                    r.push_back(indices[j]);
             }
 
             if (l.empty() || r.empty())
@@ -318,58 +322,74 @@ void DecisionTree::find_best_split_chunked(
     const size_t n_samples = indices.size();
     double best_gain = 1e-12;
 
+    // Pré-carrega labels em chunks 
+    std::vector<int> cached_labels;
+    cached_labels.reserve(n_samples);
+    
+    for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
+        size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
+        
+        for (size_t i = chunk_start; i < chunk_end; i++) {
+            cached_labels.push_back(y[indices[i]]);
+        }
+    }
+
     // Para cada feature
     for (int f = 0; f < n_features; f++) {
         
-        // carrega valores em chunks (uma vez só)
+        // carrega valores em chunks 
         std::vector<double> feature_values;
         feature_values.reserve(n_samples);
         
         for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
             size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
             
-            // Carrega chunk de 100 valores - dados ficam quentes na cache
+            // Carrega chunk de 100 valores
             for (size_t i = chunk_start; i < chunk_end; i++) {
                 int idx = indices[i];
                 feature_values.push_back(X[idx][f]);
             }
-            // Chunk processado enquanto está quente (próximas iterações do loop)
         }
         
         // Ordena para encontrar thresholds
         std::vector<double> sorted_values = feature_values;
         std::sort(sorted_values.begin(), sorted_values.end());
         
-        // Testa thresholds - usa feature_values já carregado
+        // Testa thresholds 
         for (size_t i = 0; i < sorted_values.size() - 1; i++) {
             if (sorted_values[i] == sorted_values[i+1]) continue;
             
             double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
+            
+            // Particiona usando valores e labels pré-carregados
+            std::vector<int> left_labels, right_labels;
             std::vector<int> l, r;
+            left_labels.reserve(n_samples);
+            right_labels.reserve(n_samples);
             l.reserve(n_samples);
             r.reserve(n_samples);
             
-            // Usa valores pré-carregados (acesso sequencial rápido)
-            for (size_t j = 0; j < n_samples; j++) {
-                if (feature_values[j] <= thr)
-                    l.push_back(indices[j]);
-                else
-                    r.push_back(indices[j]);
+            // Processa em chunks 
+            for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
+                size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
+                
+                for (size_t j = chunk_start; j < chunk_end; j++) {
+                    if (feature_values[j] <= thr) {
+                        l.push_back(indices[j]);
+                        left_labels.push_back(cached_labels[j]);
+                    } else {
+                        r.push_back(indices[j]);
+                        right_labels.push_back(cached_labels[j]);
+                    }
+                }
             }
             
             if (l.empty() || r.empty())
                 continue;
             
-            // Calcula gini
-            auto build_vec = [&](const std::vector<int>& ids) {
-                std::vector<int> temp;
-                temp.reserve(ids.size());
-                for (int id : ids) temp.push_back(y[id]);
-                return temp;
-            };
-            
-            double g_l = calculate_gini(build_vec(l));
-            double g_r = calculate_gini(build_vec(r));
+            // Calcula gini usando labels já carregados
+            double g_l = calculate_gini(left_labels);
+            double g_r = calculate_gini(right_labels);
             
             double g = parent_gini -
                 (l.size() / (double)n_samples) * g_l -
