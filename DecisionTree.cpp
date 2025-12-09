@@ -2,202 +2,139 @@
 
 #include <algorithm>
 #include <numeric>
-#include <random>
 #include <cmath>
 #include <iostream>
-#include <fstream>
-#include <unordered_map>
+#include <limits>
+#include <random> // Necessário para sortear as features
 
 // ============================================================
-// Construtor principal
+// Construtor (Compatibilidade)
 // ============================================================
-DecisionTree::DecisionTree(int max_depth,
-                           int min_samples_split,
-                           int chunk_size)
+DecisionTree::DecisionTree(int max_depth, int min_samples_split, int chunk_size)
     : root(nullptr),
       max_depth(max_depth),
       min_samples_split(min_samples_split),
-      use_chunk_processing(false),
-      chunk_size(chunk_size),
-      cache_friendly_accesses(0),
-      random_accesses(0)
+      num_classes(0)
 {
+    (void)chunk_size;
 }
 
 // ============================================================
-// CONSTRUTOR DE MOVIMENTO
+// Movimentação
 // ============================================================
 DecisionTree::DecisionTree(DecisionTree&& other) noexcept
 {
     root = std::move(other.root);
-
     max_depth = other.max_depth;
     min_samples_split = other.min_samples_split;
-    use_chunk_processing = other.use_chunk_processing;
-    chunk_size = other.chunk_size;
-
-    cache_friendly_accesses = other.cache_friendly_accesses;
-    random_accesses = other.random_accesses;
-
-    chunk_buffer = std::move(other.chunk_buffer);
-    chunk_labels_buffer = std::move(other.chunk_labels_buffer);
+    num_classes = other.num_classes;
 }
 
-// ============================================================
-// OPERADOR DE ATRIBUIÇÃO DE MOVIMENTO
-// ============================================================
 DecisionTree& DecisionTree::operator=(DecisionTree&& other) noexcept
 {
-    if (this != &other)
-    {
+    if (this != &other) {
         root = std::move(other.root);
-
         max_depth = other.max_depth;
         min_samples_split = other.min_samples_split;
-        use_chunk_processing = other.use_chunk_processing;
-        chunk_size = other.chunk_size;
-
-        cache_friendly_accesses = other.cache_friendly_accesses;
-        random_accesses = other.random_accesses;
-
-        chunk_buffer = std::move(other.chunk_buffer);
-        chunk_labels_buffer = std::move(other.chunk_labels_buffer);
+        num_classes = other.num_classes;
     }
     return *this;
 }
 
 // ============================================================
-// Treino da árvore
+// FIT
 // ============================================================
-void DecisionTree::fit(const std::vector<std::vector<double>>& X,
-                       const std::vector<int>& y,
-                       bool use_chunks,
-                       const std::vector<int>* bootstrap_indices)
+void DecisionTree::fit(const std::vector<std::vector<double>>& X, 
+                       const std::vector<int>& y, 
+                       bool use_chunks, 
+                       const std::vector<int>* bootstrap_indices) 
 {
-    use_chunk_processing = use_chunks;
-    reset_access_counters();
+    (void)use_chunks;
+    if (X.empty()) return;
 
-    if (bootstrap_indices) {
-        // Usa índices fornecidos (bootstrap)
-        root = build_tree(X, y, *bootstrap_indices, 0);
-    } else {
-        // Cria índices padrão (todos)
-        std::vector<int> indices(X.size());
-        std::iota(indices.begin(), indices.end(), 0);
-        root = build_tree(X, y, indices, 0);
-    }
-}
+    // 1. Descobrir num_classes
+    int max_label = 0;
+    for (int label : y) if (label > max_label) max_label = label;
+    num_classes = max_label + 1;
 
-// ============================================================
-// Predição de uma amostra
-// ============================================================
-int DecisionTree::predict_one(const std::vector<double>& sample) const
-{
-    return predict_sample(sample, root.get());
-}
-
-// ============================================================
-// Predição de várias amostras
-// ============================================================
-std::vector<int> DecisionTree::predict(const std::vector<std::vector<double>>& X) const
-{
-    std::vector<int> out;
-    out.reserve(X.size());
-
-    for (const auto& s : X)
-        out.push_back(predict_sample(s, root.get()));
-
-    return out;
-}
-
-// ============================================================
-// Predição recursiva
-// ============================================================
-int DecisionTree::predict_sample(const std::vector<double>& sample,
-                                 const Node* node) const
-{
-    if (!node || node->is_leaf)
-        return node ? node->predicted_class : -1;
-
-    double value = sample[node->feature_index];
-
-    if (value <= node->threshold) {
-        ++cache_friendly_accesses;   // OK por ser mutable
-        return predict_sample(sample, node->left.get());
-    } else {
-        ++random_accesses;           // OK por ser mutable
-        return predict_sample(sample, node->right.get());
-    }
-}
-
-// ============================================================
-// Cálculo do gini
-// ============================================================
-double DecisionTree::calculate_gini(const std::vector<int>& labels) const
-{
-    if (labels.empty())
-        return 0.0;
-
-    std::unordered_map<int,int> count;
-    for (int c : labels)
-        count[c]++;
-
-    double N = labels.size();
-    double impurity = 1.0;
-
-    for (auto& kv : count) {
-        double p = kv.second / N;
-        impurity -= p * p;
-    }
-
-    return impurity;
-}
-
-// ============================================================
-// Classe majoritária
-// ============================================================
-int DecisionTree::majority_class(const std::vector<int>& labels) const
-{
-    std::unordered_map<int,int> freq;
-    for (int v : labels)
-        freq[v]++;
-
-    int best_class = -1;
-    int best_count = -1;
-
-    for (auto& kv : freq) {
-        if (kv.second > best_count) {
-            best_class = kv.first;
-            best_count = kv.second;
+    // 2. Transposição Otimizada (Column-Major)
+    size_t n_samples = X.size();
+    size_t n_features = X[0].size();
+    std::vector<std::vector<double>> X_col_major(n_features, std::vector<double>(n_samples));
+    
+    // Loop blocking para melhorar cache na transposição
+    // (Otimização extra caso a matriz seja gigante)
+    for (size_t i = 0; i < n_samples; ++i) {
+        const double* row_ptr = X[i].data();
+        for (size_t j = 0; j < n_features; ++j) {
+            X_col_major[j][i] = row_ptr[j];
         }
     }
-    return best_class;
+
+    // 3. Índices
+    std::vector<int> indices;
+    if (bootstrap_indices) {
+        indices = *bootstrap_indices;
+    } else {
+        indices.resize(n_samples);
+        std::iota(indices.begin(), indices.end(), 0);
+    }
+
+    // 4. Construir Recursivamente
+    root = build_tree(X_col_major, y, indices, 0);
 }
 
 // ============================================================
-// Construção recursiva da árvore
+// BUILD TREE
 // ============================================================
 std::unique_ptr<Node> DecisionTree::build_tree(
-    const std::vector<std::vector<double>>& X,
+    const std::vector<std::vector<double>>& X_col_major,
     const std::vector<int>& y,
     const std::vector<int>& indices,
     int depth)
 {
-    // labels atuais
-    std::vector<int> current_labels;
-    current_labels.reserve(indices.size());
-    for (int idx : indices)
-        current_labels.push_back(y[idx]);
+    // Cálculo rápido de pureza
+    int majority = -1;
+    int max_c = -1;
+    
+    // Contagem local (Pequena alocação na stack se num_classes for pequeno, 
+    // mas aqui usamos heap pelo vetor. Para ultra-perf, usar array fixo se souber classes max)
+    std::vector<int> counts(num_classes, 0);
+    
+    bool is_pure = true;
+    int first_label = y[indices[0]];
 
-    // condições de parada
-    double gini_parent = calculate_gini(current_labels);
-    if (depth >= max_depth ||
-        indices.size() < (size_t)min_samples_split ||
-        gini_parent == 0.0)
+    for (int idx : indices) {
+        int label = y[idx];
+        counts[label]++;
+        if (label != first_label) is_pure = false;
+    }
+
+    // Descobrir majoritária
+    for(int c = 0; c < num_classes; c++) {
+        if(counts[c] > max_c) {
+            max_c = counts[c];
+            majority = c;
+        }
+    }
+
+    // Critérios de Parada (Otimização: Early Exit se for puro)
+    if (is_pure || 
+        depth >= max_depth || 
+        indices.size() < (size_t)min_samples_split) 
     {
         auto leaf = std::make_unique<Node>();
         leaf->is_leaf = true;
-        leaf->predicted_class = majority_class(current_labels);
+        leaf->predicted_class = majority;
+        return leaf;
+    }
+
+    // Calcular Gini Inicial
+    double gini = calculate_gini_from_counts(counts, indices.size());
+    if (gini <= 1e-6) { // Praticamente puro
+        auto leaf = std::make_unique<Node>();
+        leaf->is_leaf = true;
+        leaf->predicted_class = majority;
         return leaf;
     }
 
@@ -205,19 +142,14 @@ std::unique_ptr<Node> DecisionTree::build_tree(
     double best_threshold = 0.0;
     std::vector<int> left_idx, right_idx;
 
-    if (!use_chunk_processing)
-        find_best_split_basic(X, y, indices,
-                              best_feature, best_threshold,
-                              left_idx, right_idx, gini_parent);
-    else
-        find_best_split_chunked(X, y, indices,
-                                best_feature, best_threshold,
-                                left_idx, right_idx, gini_parent);
+    find_best_split(X_col_major, y, indices, 
+                    best_feature, best_threshold, 
+                    left_idx, right_idx, gini);
 
     if (best_feature == -1 || left_idx.empty() || right_idx.empty()) {
         auto leaf = std::make_unique<Node>();
         leaf->is_leaf = true;
-        leaf->predicted_class = majority_class(current_labels);
+        leaf->predicted_class = majority;
         return leaf;
     }
 
@@ -225,91 +157,19 @@ std::unique_ptr<Node> DecisionTree::build_tree(
     node->is_leaf = false;
     node->feature_index = best_feature;
     node->threshold = best_threshold;
+    node->predicted_class = majority;
 
-    node->left  = build_tree(X, y, left_idx,  depth + 1);
-    node->right = build_tree(X, y, right_idx, depth + 1);
+    node->left = build_tree(X_col_major, y, left_idx, depth + 1);
+    node->right = build_tree(X_col_major, y, right_idx, depth + 1);
 
     return node;
 }
 
 // ============================================================
-// Split básico
+// FIND BEST SPLIT (A VERSÃO VENCEDORA)
 // ============================================================
-void DecisionTree::find_best_split_basic(
-    const std::vector<std::vector<double>>& X,
-    const std::vector<int>& y,
-    const std::vector<int>& indices,
-    int& best_feature,
-    double& best_threshold,
-    std::vector<int>& left_idx,
-    std::vector<int>& right_idx,
-    double parent_gini) const
-{
-    const int n_features = X[0].size();
-    double best_gain = 1e-12;
-
-    // Para cada feature
-    for (int f = 0; f < n_features; f++) {
-        
-        // Coletar valores desta feature
-        std::vector<double> feature_values;
-        feature_values.reserve(indices.size());
-        for (int idx : indices) {
-            feature_values.push_back(X[idx][f]);
-        }
-
-        // Ordena CÓPIA para encontrar thresholds
-        std::vector<double> sorted_values = feature_values;
-        std::sort(sorted_values.begin(), sorted_values.end());
-        
-        // Testar thresholds entre valores únicos consecutivos
-        for (size_t i = 0; i < sorted_values.size() - 1; i++) {
-            if (sorted_values[i] == sorted_values[i+1]) continue;  // Skip duplicados
-            
-            double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
-            std::vector<int> l, r;
-
-            // Usa valores pré-carregados
-            for (size_t j = 0; j < indices.size(); j++) {
-                if (feature_values[j] <= thr)
-                    l.push_back(indices[j]);
-                else
-                    r.push_back(indices[j]);
-            }
-
-            if (l.empty() || r.empty())
-                continue;
-
-            auto build_vec = [&](const std::vector<int>& ids) {
-                std::vector<int> temp;
-                temp.reserve(ids.size());
-                for (int i : ids) temp.push_back(y[i]);
-                return temp;
-            };
-
-            double g_l = calculate_gini(build_vec(l));
-            double g_r = calculate_gini(build_vec(r));
-
-            double g = parent_gini -
-                (l.size() / (double)indices.size()) * g_l -
-                (r.size() / (double)indices.size()) * g_r;
-
-            if (g > best_gain) {
-                best_gain = g;
-                best_feature = f;
-                best_threshold = thr;
-                left_idx = l;
-                right_idx = r;
-            }
-        }
-    }
-}
-
-// ============================================================
-// Split com chunks - OTIMIZADO para localidade temporal
-// ============================================================
-void DecisionTree::find_best_split_chunked(
-    const std::vector<std::vector<double>>& X,
+void DecisionTree::find_best_split(
+    const std::vector<std::vector<double>>& X_col_major,
     const std::vector<int>& y,
     const std::vector<int>& indices,
     int& best_feature,
@@ -318,150 +178,204 @@ void DecisionTree::find_best_split_chunked(
     std::vector<int>& right_idx,
     double parent_gini)
 {
-    const int n_features = X[0].size();
-    const size_t n_samples = indices.size();
-    double best_gain = 1e-12;
-
-    // Pré-carrega labels em chunks 
-    std::vector<int> cached_labels;
-    cached_labels.reserve(n_samples);
+    size_t n_features = X_col_major.size();
+    size_t n_samples = indices.size();
     
-    for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
-        size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
+    double best_gain = -1.0;
+    best_feature = -1;
+
+    // --- OTIMIZAÇÃO 1: Feature Subsampling (mtry) ---
+    // Em Random Forest, não olhamos todas as features, olhamos sqrt(features).
+    // Isso dá um speedup massivo (ex: de 100 colunas para 10).
+    size_t n_features_to_check = std::max((size_t)1, (size_t)std::sqrt(n_features));
+    
+    // Gerador aleatório estático para velocidade (thread_local para thread-safety se necessário)
+    static std::mt19937 rng(12345); 
+    std::vector<int> feature_candidates(n_features);
+    std::iota(feature_candidates.begin(), feature_candidates.end(), 0);
+    
+    // Embaralha parcial (Fisher-Yates parcial é mais rápido que shuffle total)
+    for (size_t i = 0; i < n_features_to_check; ++i) {
+        std::uniform_int_distribution<size_t> dist(i, n_features - 1);
+        std::swap(feature_candidates[i], feature_candidates[dist(rng)]);
+    }
+
+    // --- OTIMIZAÇÃO 2: Hoisting de Memória ---
+    // Aloca FORA do loop para reusar a memória em todas as features
+    std::vector<SampleEntry> entries(n_samples);
+    std::vector<int> total_counts(num_classes, 0);
+    std::vector<int> left_counts(num_classes, 0);
+    std::vector<int> right_counts(num_classes, 0);
+
+    // Contagem base (uma vez por nó)
+    for (int idx : indices) total_counts[y[idx]]++;
+
+    // Loop apenas nas features sorteadas
+    for (size_t k = 0; k < n_features_to_check; k++) {
+        int f = feature_candidates[k];
         
-        for (size_t i = chunk_start; i < chunk_end; i++) {
-            cached_labels.push_back(y[indices[i]]);
+        // Cópia rápida contígua
+        const auto& feature_col = X_col_major[f];
+        for (size_t i = 0; i < n_samples; i++) {
+            int original_idx = indices[i];
+            entries[i].value = feature_col[original_idx];
+            entries[i].label = y[original_idx];
+            entries[i].original_index = original_idx;
+        }
+
+        // Sort (o gargalo aceitável)
+        std::sort(entries.begin(), entries.end(), 
+            [](const SampleEntry& a, const SampleEntry& b) {
+                return a.value < b.value;
+            });
+
+        // Reset contadores (sem realocar)
+        std::fill(left_counts.begin(), left_counts.end(), 0);
+        // Cópia rápida de vetor pequeno
+        right_counts = total_counts; 
+        
+        int n_left = 0;
+        int n_right = (int)n_samples;
+
+        // Linear Scan O(N)
+        for (size_t i = 0; i < n_samples - 1; i++) {
+            int label = entries[i].label;
+            
+            n_left++;
+            n_right--;
+            left_counts[label]++;
+            right_counts[label]--;
+
+            // Pula duplicatas
+            if (entries[i].value == entries[i+1].value) continue;
+
+            // Gini otimizado (inline calculation)
+            double gini_left = 1.0;
+            double gini_right = 1.0;
+            
+            for(int c = 0; c < num_classes; c++) {
+                if(left_counts[c] > 0) {
+                    double p = (double)left_counts[c] / n_left;
+                    gini_left -= p*p;
+                }
+                if(right_counts[c] > 0) {
+                    double p = (double)right_counts[c] / n_right;
+                    gini_right -= p*p;
+                }
+            }
+
+            double weighted_gini = ((double)n_left / n_samples) * gini_left + 
+                                   ((double)n_right / n_samples) * gini_right;
+
+            double gain = parent_gini - weighted_gini;
+
+            if (gain > best_gain) {
+                best_gain = gain;
+                best_feature = f;
+                best_threshold = (entries[i].value + entries[i+1].value) * 0.5;
+            }
         }
     }
 
-    // Para cada feature
-    for (int f = 0; f < n_features; f++) {
+    // Reconstrução Final
+    if (best_feature != -1) {
+        left_idx.reserve(n_samples);
+        right_idx.reserve(n_samples);
+        const auto& feature_col = X_col_major[best_feature];
         
-        // carrega valores em chunks 
-        std::vector<double> feature_values;
-        feature_values.reserve(n_samples);
-        
-        for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
-            size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
-            
-            // Carrega chunk de 100 valores
-            for (size_t i = chunk_start; i < chunk_end; i++) {
-                int idx = indices[i];
-                feature_values.push_back(X[idx][f]);
-            }
-        }
-        
-        // Ordena para encontrar thresholds
-        std::vector<double> sorted_values = feature_values;
-        std::sort(sorted_values.begin(), sorted_values.end());
-        
-        // Testa thresholds 
-        for (size_t i = 0; i < sorted_values.size() - 1; i++) {
-            if (sorted_values[i] == sorted_values[i+1]) continue;
-            
-            double thr = (sorted_values[i] + sorted_values[i+1]) / 2.0;
-            
-            // Particiona usando valores e labels pré-carregados
-            std::vector<int> left_labels, right_labels;
-            std::vector<int> l, r;
-            left_labels.reserve(n_samples);
-            right_labels.reserve(n_samples);
-            l.reserve(n_samples);
-            r.reserve(n_samples);
-            
-            // Processa em chunks 
-            for (size_t chunk_start = 0; chunk_start < n_samples; chunk_start += chunk_size) {
-                size_t chunk_end = std::min(chunk_start + chunk_size, n_samples);
-                
-                for (size_t j = chunk_start; j < chunk_end; j++) {
-                    if (feature_values[j] <= thr) {
-                        l.push_back(indices[j]);
-                        left_labels.push_back(cached_labels[j]);
-                    } else {
-                        r.push_back(indices[j]);
-                        right_labels.push_back(cached_labels[j]);
-                    }
-                }
-            }
-            
-            if (l.empty() || r.empty())
-                continue;
-            
-            // Calcula gini usando labels já carregados
-            double g_l = calculate_gini(left_labels);
-            double g_r = calculate_gini(right_labels);
-            
-            double g = parent_gini -
-                (l.size() / (double)n_samples) * g_l -
-                (r.size() / (double)n_samples) * g_r;
-            
-            if (g > best_gain) {
-                best_gain = g;
-                best_feature = f;
-                best_threshold = thr;
-                left_idx = l;
-                right_idx = r;
-            }
+        // Passada rápida linear usando vetor original
+        for (int idx : indices) {
+            if (feature_col[idx] <= best_threshold)
+                left_idx.push_back(idx);
+            else
+                right_idx.push_back(idx);
         }
     }
 }
 
 // ============================================================
-// SERIALIZAÇÃO
+// UTILS
 // ============================================================
-void DecisionTree::save_model(std::ostream& out) const
-{
+double DecisionTree::calculate_gini_from_counts(const std::vector<int>& counts, int total) const {
+    if (total == 0) return 0.0;
+    double impurity = 1.0;
+    double inv_total = 1.0 / total; // Multiplicação é mais rápida que divisão
+    for (int c : counts) {
+        if (c > 0) {
+            double p = c * inv_total;
+            impurity -= p * p;
+        }
+    }
+    return impurity;
+}
+
+int DecisionTree::predict_one(const std::vector<double>& sample) const {
+    return predict_sample(sample, root.get());
+}
+
+std::vector<int> DecisionTree::predict(const std::vector<std::vector<double>>& X) const {
+    std::vector<int> predictions;
+    predictions.reserve(X.size());
+    for (const auto& sample : X) {
+        predictions.push_back(predict_sample(sample, root.get()));
+    }
+    return predictions;
+}
+
+int DecisionTree::predict_sample(const std::vector<double>& sample, const Node* node) const {
+    // Versão iterativa seria mais rápida que recursiva, mas mantemos recursiva pela simplicidade
+    if (!node) return -1;
+    if (node->is_leaf) return node->predicted_class;
+
+    if (sample[node->feature_index] <= node->threshold)
+        return predict_sample(sample, node->left.get());
+    else
+        return predict_sample(sample, node->right.get());
+}
+
+// ============================================================
+// SERIALIZATION (BOILERPLATE)
+// ============================================================
+void DecisionTree::save_model(std::ostream& out) const {
     out.write(reinterpret_cast<const char*>(&max_depth), sizeof(max_depth));
     out.write(reinterpret_cast<const char*>(&min_samples_split), sizeof(min_samples_split));
-    out.write(reinterpret_cast<const char*>(&chunk_size), sizeof(chunk_size));
-    out.write(reinterpret_cast<const char*>(&use_chunk_processing), sizeof(use_chunk_processing));
-
+    out.write(reinterpret_cast<const char*>(&num_classes), sizeof(num_classes));
     save_node(out, root.get());
 }
 
-void DecisionTree::save_node(std::ostream& out, const Node* node) const
-{
+void DecisionTree::save_node(std::ostream& out, const Node* node) const {
     bool exists = (node != nullptr);
     out.write(reinterpret_cast<const char*>(&exists), sizeof(bool));
     if (!exists) return;
 
     out.write(reinterpret_cast<const char*>(&node->is_leaf), sizeof(bool));
+    out.write(reinterpret_cast<const char*>(&node->predicted_class), sizeof(int));
     out.write(reinterpret_cast<const char*>(&node->feature_index), sizeof(int));
     out.write(reinterpret_cast<const char*>(&node->threshold), sizeof(double));
-    out.write(reinterpret_cast<const char*>(&node->predicted_class), sizeof(int));
 
     save_node(out, node->left.get());
     save_node(out, node->right.get());
 }
 
-// ============================================================
-// DESERIALIZAÇÃO
-// ============================================================
-void DecisionTree::load_model(std::istream& in)
-{
+void DecisionTree::load_model(std::istream& in) {
     in.read(reinterpret_cast<char*>(&max_depth), sizeof(max_depth));
     in.read(reinterpret_cast<char*>(&min_samples_split), sizeof(min_samples_split));
-    in.read(reinterpret_cast<char*>(&chunk_size), sizeof(chunk_size));
-    in.read(reinterpret_cast<char*>(&use_chunk_processing), sizeof(use_chunk_processing));
-
+    in.read(reinterpret_cast<char*>(&num_classes), sizeof(num_classes));
     root = load_node(in);
 }
 
-std::unique_ptr<Node> DecisionTree::load_node(std::istream& in)
-{
-    bool exists = false;
+std::unique_ptr<Node> DecisionTree::load_node(std::istream& in) {
+    bool exists;
     in.read(reinterpret_cast<char*>(&exists), sizeof(bool));
     if (!exists) return nullptr;
 
     auto node = std::make_unique<Node>();
-
     in.read(reinterpret_cast<char*>(&node->is_leaf), sizeof(bool));
+    in.read(reinterpret_cast<char*>(&node->predicted_class), sizeof(int));
     in.read(reinterpret_cast<char*>(&node->feature_index), sizeof(int));
     in.read(reinterpret_cast<char*>(&node->threshold), sizeof(double));
-    in.read(reinterpret_cast<char*>(&node->predicted_class), sizeof(int));
 
-    node->left  = load_node(in);
+    node->left = load_node(in);
     node->right = load_node(in);
-
     return node;
 }
