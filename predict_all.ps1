@@ -30,6 +30,11 @@ $tests = @(
         Name = "skin"
         File = "skin_segmentation.csv"
         Sizes = @(1000, 10000, 245057)
+    },
+    @{
+        Name = "arrhythmia"
+        File = "arrhythmia.csv"
+        Sizes = @(100, 200, 452)
     }
 )
 
@@ -64,16 +69,13 @@ foreach ($test in $tests) {
     
     # Loop pelos tamanhos
     foreach ($size in $test.Sizes) {
-        # Formatar label do tamanho (igual ao train_all.ps1)
+        # Formatar label do tamanho
         $sizeLabel = ""
         if ($size -lt 1000) {
-            # Menor que 1000: usar formato 0,5k
             $sizeLabel = "$([string]::Format('{0:N1}', $size/1000).Replace('.', ','))k"
         } elseif ($size % 1000 -eq 0) {
-            # Múltiplo exato de 1000: usar 1k, 10k, etc (sem vírgula)
             $sizeLabel = "$($size/1000)k"
         } else {
-            # Não é múltiplo de 1000: usar formato com vírgula (45,222k)
             $sizeLabel = "$([string]::Format('{0:N0}', $size).Replace('.', ','))k"
         }
         
@@ -82,7 +84,7 @@ foreach ($test in $tests) {
         Write-Host "========================================================" -ForegroundColor Cyan
         Write-Host ""
         
-        # Caminhos dos modelos (usar mesmo formato que train_all.ps1)
+        # Caminhos dos modelos
         $baselineModel = "models/baseline_${datasetName}_${sizeLabel}.model"
         $optimizedModel = "models/optimized_${datasetName}_${sizeLabel}.model"
         
@@ -102,19 +104,25 @@ foreach ($test in $tests) {
         # ========================================
         Write-Host "[BASELINE $datasetName $sizeLabel] Testando predicao..." -ForegroundColor White
         
-        $startTime = Get-Date
         $output = & ".\forest_baseline_predict.exe" $datasetFile $baselineModel $size $num_runs 2>&1 | Out-String
-        $endTime = Get-Date
-        $elapsed = ($endTime - $startTime).TotalSeconds
         
-        # Extrair tempo médio de predição do output
+        # --- REGEX CORRIGIDO PARA BASELINE ---
         $predTime = "N/A"
         $accuracy = "N/A"
-        if ($output -match "Tempo Predicao Medio \(ms\)\s+([\d.]+)") {
-            $predTime = [math]::Round([double]$Matches[1], 2)
+        
+        # Captura: "Tempo Predicao: 0 ms" OU "Tempo Medio: 0 ms"
+        if ($output -match "(Tempo Predicao|Tempo Medio)[:\s]+([\d.]+)") {
+            $predTime = [math]::Round([double]$Matches[2], 2)
         }
-        if ($output -match "Acuracia Media \(%\)\s+([\d.]+)") {
-            $accuracy = [math]::Round([double]$Matches[1], 2)
+        
+        # Captura: "Acuracia: 100%"
+        if ($output -match "(Acuracia|Acuracia Media)[:\s]+([\d.]+)") {
+            $accuracy = [math]::Round([double]$Matches[2], 2)
+        }
+        
+        if ($predTime -eq "N/A") {
+            Write-Host "ERRO AO LER SAIDA BASELINE. Output bruto:" -ForegroundColor Red
+            Write-Host $output -ForegroundColor Gray
         }
         
         Write-Host "[BASELINE $datasetName $sizeLabel] Tempo predicao: ${predTime}ms, Acuracia: ${accuracy}%" -ForegroundColor Green
@@ -125,19 +133,19 @@ foreach ($test in $tests) {
         # ========================================
         Write-Host "[OTIMIZADO $datasetName $sizeLabel] Testando predicao..." -ForegroundColor White
         
-        $startTime = Get-Date
         $output = & ".\forest_optimized_predict.exe" $datasetFile $optimizedModel $size $num_runs 2>&1 | Out-String
-        $endTime = Get-Date
-        $elapsed = ($endTime - $startTime).TotalSeconds
         
-        # Extrair tempo médio de predição do output
+        # --- REGEX CORRIGIDO PARA OPTIMIZED ---
         $predTime = "N/A"
         $accuracy = "N/A"
-        if ($output -match "Tempo Predicao Medio \(ms\)\s+([\d.]+)") {
-            $predTime = [math]::Round([double]$Matches[1], 2)
+        
+        # Tenta pegar da Tabela ("Tempo Predicao Medio (ms)") ou texto simples
+        if ($output -match "(Tempo Predicao Medio \(ms\)|Tempo Predicao|Tempo Medio)[:\s]+([\d.]+)") {
+            $predTime = [math]::Round([double]$Matches[2], 2)
         }
-        if ($output -match "Acuracia Media \(%\)\s+([\d.]+)") {
-            $accuracy = [math]::Round([double]$Matches[1], 2)
+        
+        if ($output -match "(Acuracia Media \(%\)|Acuracia|Acuracia Media)[:\s]+([\d.]+)") {
+            $accuracy = [math]::Round([double]$Matches[2], 2)
         }
         
         Write-Host "[OTIMIZADO $datasetName $sizeLabel] Tempo predicao: ${predTime}ms, Acuracia: ${accuracy}%" -ForegroundColor Green

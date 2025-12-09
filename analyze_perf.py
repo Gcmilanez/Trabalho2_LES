@@ -172,7 +172,7 @@ for metric, ylabel, title, is_percentage in metrics_to_plot:
         
         ax.set_xlabel('Número de Amostras', fontsize=12, fontweight='bold')
         ax.set_ylabel(ylabel, fontsize=12, fontweight='bold', color='darkgreen')
-        ax.set_title(f'{title} - {dataset.capitalize()}\nRandom Forest com Chunks de 100', 
+        ax.set_title(f'{title} - {dataset.capitalize()}', 
                      fontsize=13, fontweight='bold')
         ax.set_xticks(x_pos)
         ax.set_xticklabels(x_labels)

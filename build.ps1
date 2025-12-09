@@ -1,85 +1,78 @@
 # ============================================================
-#   Script de Compilação - Random Forest Baseline vs Otimizada
+#   Script de Compilação Unificado (Classes Otimizadas)
 # ============================================================
 
 Write-Host "========================================================" -ForegroundColor Cyan
-Write-Host "  Compilando Random Forest (Baseline + Otimizada)" -ForegroundColor Cyan
+Write-Host "  Compilando Random Forest (Unified Architecture)" -ForegroundColor Cyan
 Write-Host "========================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Criar diretório obj se não existir
-if (-not (Test-Path "obj")) {
-    New-Item -ItemType Directory -Path "obj" | Out-Null
-}
+# Criar diretório obj
+if (-not (Test-Path "obj")) { New-Item -ItemType Directory -Path "obj" | Out-Null }
 
 $CXX = "g++"
-$CXXFLAGS = "-std=c++17 -O3 -Wall -Wextra -march=native"
+# Flags agressivas para benchmark real
+$CXXFLAGS = "-std=c++17 -O3 -Wall -Wextra -march=native" 
 
-# ============================================================
-# Compilar objetos base
-# ============================================================
+# ------------------------------------------------------------
+# 1. Compilar Classes Base (Objetos)
+# ------------------------------------------------------------
 
-Write-Host "[1/7] Compilando DecisionTree.cpp..." -ForegroundColor Yellow
+Write-Host "[1/6] Compilando DecisionTree.cpp..." -ForegroundColor Yellow
 & $CXX $CXXFLAGS.Split() -c DecisionTree.cpp -o obj/DecisionTree.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[2/7] Compilando RandomForestBaseline.cpp..." -ForegroundColor Yellow
-& $CXX $CXXFLAGS.Split() -c RandomForestBaseline.cpp -o obj/RandomForestBaseline.o
+Write-Host "[2/6] Compilando RandomForest.cpp..." -ForegroundColor Yellow
+& $CXX $CXXFLAGS.Split() -c RandomForest.cpp -o obj/RandomForest.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[3/7] Compilando RandomForestOptimized.cpp..." -ForegroundColor Yellow
-& $CXX $CXXFLAGS.Split() -c RandomForestOptimized.cpp -o obj/RandomForestOptimized.o
-if ($LASTEXITCODE -ne 0) { exit 1 }
+# ------------------------------------------------------------
+# 2. Compilar Mains (Treino)
+# ------------------------------------------------------------
 
-Write-Host "[4/7] Compilando main_forest_baseline.cpp..." -ForegroundColor Yellow
+Write-Host "[3/6] Compilando main_forest_baseline.cpp..." -ForegroundColor Yellow
 & $CXX $CXXFLAGS.Split() -c main_forest_baseline.cpp -o obj/main_forest_baseline.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[5/7] Compilando main_forest_optimized.cpp..." -ForegroundColor Yellow
+Write-Host "[4/6] Compilando main_forest_optimized.cpp..." -ForegroundColor Yellow
 & $CXX $CXXFLAGS.Split() -c main_forest_optimized.cpp -o obj/main_forest_optimized.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[6/7] Compilando main_predict_baseline.cpp..." -ForegroundColor Yellow
+# ------------------------------------------------------------
+# 3. Compilar Mains (Predicao)
+# ------------------------------------------------------------
+
+Write-Host "[5/6] Compilando main_predict_baseline.cpp..." -ForegroundColor Yellow
 & $CXX $CXXFLAGS.Split() -c main_predict_baseline.cpp -o obj/main_predict_baseline.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-Write-Host "[7/7] Compilando main_predict_optimized.cpp..." -ForegroundColor Yellow
+Write-Host "[6/6] Compilando main_predict_optimized.cpp..." -ForegroundColor Yellow
 & $CXX $CXXFLAGS.Split() -c main_predict_optimized.cpp -o obj/main_predict_optimized.o
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
 Write-Host ""
-
-# ============================================================
-# Linkar executáveis
-# ============================================================
-
 Write-Host "Linkando executaveis..." -ForegroundColor Green
-Write-Host ""
+
+# ------------------------------------------------------------
+# 4. Linkagem Final
+# ------------------------------------------------------------
+
+# Lista comum de objetos das classes
+$coreObjs = "obj/DecisionTree.o", "obj/RandomForest.o"
 
 Write-Host "  -> forest_baseline_train.exe" -ForegroundColor White
-& $CXX $CXXFLAGS.Split() obj/DecisionTree.o obj/RandomForestBaseline.o obj/main_forest_baseline.o -o forest_baseline_train.exe
-if ($LASTEXITCODE -ne 0) { exit 1 }
+& $CXX $CXXFLAGS.Split() $coreObjs "obj/main_forest_baseline.o" -o forest_baseline_train.exe
 
 Write-Host "  -> forest_optimized_train.exe" -ForegroundColor White
-& $CXX $CXXFLAGS.Split() obj/DecisionTree.o obj/RandomForestOptimized.o obj/main_forest_optimized.o -o forest_optimized_train.exe
-if ($LASTEXITCODE -ne 0) { exit 1 }
+& $CXX $CXXFLAGS.Split() $coreObjs "obj/main_forest_optimized.o" -o forest_optimized_train.exe
 
 Write-Host "  -> forest_baseline_predict.exe" -ForegroundColor White
-& $CXX $CXXFLAGS.Split() obj/DecisionTree.o obj/RandomForestBaseline.o obj/main_predict_baseline.o -o forest_baseline_predict.exe
-if ($LASTEXITCODE -ne 0) { exit 1 }
+& $CXX $CXXFLAGS.Split() $coreObjs "obj/main_predict_baseline.o" -o forest_baseline_predict.exe
 
 Write-Host "  -> forest_optimized_predict.exe" -ForegroundColor White
-& $CXX $CXXFLAGS.Split() obj/DecisionTree.o obj/RandomForestOptimized.o obj/main_predict_optimized.o -o forest_optimized_predict.exe
-if ($LASTEXITCODE -ne 0) { exit 1 }
+& $CXX $CXXFLAGS.Split() $coreObjs "obj/main_predict_optimized.o" -o forest_optimized_predict.exe
 
 Write-Host ""
 Write-Host "========================================================" -ForegroundColor Green
-Write-Host "  Compilacao concluida com sucesso!" -ForegroundColor Green
+Write-Host "  Pronto! Executaveis gerados." -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Green
-Write-Host ""
-Write-Host "Executaveis criados:" -ForegroundColor Cyan
-Write-Host "  -> forest_baseline_train.exe" -ForegroundColor White
-Write-Host "  -> forest_optimized_train.exe" -ForegroundColor White
-Write-Host "  -> forest_baseline_predict.exe" -ForegroundColor White
-Write-Host "  -> forest_optimized_predict.exe" -ForegroundColor White
-Write-Host ""

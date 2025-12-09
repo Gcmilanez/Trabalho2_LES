@@ -1,4 +1,4 @@
-#include "RandomForestOptimized.h"
+#include "RandomForest.h"
 #include "DataLoader.h"
 
 #include <iostream>
@@ -123,7 +123,7 @@ int main(int argc, char** argv) {
     for (int run = 0; run < num_runs; ++run) {
         std::cout << "Iteracao " << (run + 1) << "/" << num_runs << "...\n";
 
-        RandomForestOptimized forest(1, 1, 1, 1); // parametros nao importam para load_model
+        RandomForest forest(1, 1, 1, 1); // parametros nao importam para load_model
         std::cout << "  Carregando modelo...\n";
         forest.load_model(model_path);
 

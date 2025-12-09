@@ -35,6 +35,11 @@ $datasets = @(
         Name = "skin"
         File = "skin_segmentation.csv"
         Sizes = @(1000, 10000, 245057)
+    },
+    @{
+        Name = "arrhythmia"
+        File = "arrhythmia.csv"
+        Sizes = @(100, 200, 452)
     }
 )
 

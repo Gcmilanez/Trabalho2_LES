@@ -5,67 +5,67 @@
 #include <string>
 #include <fstream>
 #include <sstream>
-#include <stdexcept>
 #include <iostream>
+#include <stdexcept>
 
 class DataLoader {
 public:
-    // Carrega CSV com número automático de features
-    // Última coluna = label, demais = features
-    static void load_csv(const std::string& filename,
-                        std::vector<std::vector<double>>& X,
-                        std::vector<int>& y,
-                        int max_samples = -1) {
-        std::ifstream file(filename);
+    static void load_csv(const std::string& path, 
+                         std::vector<std::vector<double>>& X, 
+                         std::vector<int>& y, 
+                         int max_samples = -1) 
+    {
+        std::ifstream file(path);
         if (!file.is_open()) {
-            throw std::runtime_error("Não foi possível abrir o arquivo: " + filename);
+            throw std::runtime_error("Nao foi possivel abrir o arquivo: " + path);
         }
-        
+
         std::string line;
-        // Pular header
-        std::getline(file, line);
-        
+        // Tenta ler o cabeçalho (opcional, remova se seus CSVs não tiverem header)
+        // Se a primeira linha já for dados e der erro de conversão, comente a linha abaixo.
+        if(std::getline(file, line)) {
+            // Verifica se é header (contem letras) ou dados
+            // Lógica simples: se tentar converter e falhar, é header.
+            try {
+                std::stringstream ss(line);
+                std::string cell;
+                if(std::getline(ss, cell, ',')) {
+                    std::stod(cell); 
+                    // Se converteu, volta o ponteiro do arquivo para o início
+                    file.clear();
+                    file.seekg(0);
+                }
+            } catch (...) {
+                // É header, ignora e segue
+            }
+        }
+
         X.clear();
         y.clear();
-        
-        int samples_loaded = 0;
-        
+
         while (std::getline(file, line)) {
-            if (max_samples > 0 && samples_loaded >= max_samples) {
-                break;
-            }
-            
+            if (max_samples > 0 && (int)X.size() >= max_samples) break;
+            if (line.empty()) continue;
+
             std::stringstream ss(line);
-            std::string value;
-            std::vector<double> features;
-            std::vector<std::string> tokens;
+            std::string cell;
+            std::vector<double> row;
             
-            // Ler todos os valores
-            while (std::getline(ss, value, ',')) {
-                tokens.push_back(value);
+            while (std::getline(ss, cell, ',')) {
+                try {
+                    row.push_back(std::stod(cell));
+                } catch (...) {
+                    // Ignora células mal formadas ou vazias
+                }
             }
             
-            if (tokens.empty()) continue;
-            
-            // Todas as colunas exceto última são features
-            for (size_t i = 0; i < tokens.size() - 1; ++i) {
-                features.push_back(std::stod(tokens[i]));
-            }
-            
-            // Última coluna é o label
-            int label = std::stoi(tokens.back());
-            
-            X.push_back(features);
-            y.push_back(label);
-            samples_loaded++;
-            
-            // Progresso a cada 100k amostras
-            if (samples_loaded % 100000 == 0) {
-                std::cout << "  Carregadas " << samples_loaded << " amostras...\n";
+            // Assume que a última coluna é o Target (y)
+            if (!row.empty()) {
+                y.push_back((int)row.back());
+                row.pop_back();
+                X.push_back(row);
             }
         }
-        
-        file.close();
     }
 };
 

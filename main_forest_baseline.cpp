@@ -1,4 +1,4 @@
-#include "RandomForestBaseline.h"
+#include "RandomForest.h" // Classe unificada
 #include "DataLoader.h"
 
 #include <iostream>
@@ -15,105 +15,69 @@ std::string get_filename_only(const std::string& path) {
 
 int main(int argc, char** argv) {
     std::cout << "========================================================\n";
-    std::cout << "   Random Forest (Baseline): TREINO + SALVAMENTO\n";
+    std::cout << "   Random Forest (Baseline): TREINO\n";
+    std::cout << "   [Parametros da Imagem: 50 arvores, Depth 8, Split 5]\n";
     std::cout << "========================================================\n\n";
 
     if (argc < 2) {
-        std::cerr << "Uso: " << argv[0]
-                  << " <arquivo_dataset.csv> [max_samples] [num_runs] [modelo_saida]\n";
-        std::cerr << "Exemplo: " << argv[0]
-                  << " covertype_dataset.csv 100000 1 baseline.model\n";
+        std::cerr << "Uso: " << argv[0] << " <dataset.csv> [max_samples] [num_runs] [model_out]\n";
         return 1;
     }
 
     std::string dataset_path = argv[1];
+    int max_samples = (argc >= 3) ? std::stoi(argv[2]) : 100000;
+    int num_runs = (argc >= 4) ? std::stoi(argv[3]) : 1;
+    std::string model_path = (argc >= 5) ? argv[4] : "models/baseline_model.bin";
 
-    int max_samples = 100000; // padrão
-    if (argc >= 3) {
-        max_samples = std::stoi(argv[2]);
-    }
-
-    int num_runs = 1; // para treino+salvamento normalmente 1 já basta
-    if (argc >= 4) {
-        num_runs = std::stoi(argv[3]);
-    }
-
-    std::string model_path;
-    if (argc >= 5) {
-        model_path = argv[4];
-    } else {
-        model_path = "models/baseline_" + get_filename_only(dataset_path) + ".model";
-    }
-
-    std::cout << "Dataset     : " << dataset_path << "\n";
-    std::cout << "Max samples : " << max_samples << "\n";
-    std::cout << "Num runs    : " << num_runs << "\n";
-    std::cout << "Modelo saida: " << model_path << "\n\n";
-
-    // Carregar dataset
+    // 1. Carregar Dataset
     std::vector<std::vector<double>> X;
     std::vector<int> y;
-
-    std::cout << "Carregando dataset...\n";
     try {
         DataLoader::load_csv(dataset_path, X, y, max_samples);
-        if (X.empty()) {
-            std::cerr << "❌ Dataset vazio apos carregamento!\n";
-            return 1;
-        }
-        std::cout << "Dataset carregado: " << X.size() << " amostras, "
-                  << X[0].size() << " features\n\n";
+        if (X.empty()) throw std::runtime_error("Dataset vazio");
+        std::cout << "Dataset: " << X.size() << " amostras carregadas.\n";
     } catch (const std::exception& e) {
-        std::cerr << "❌ Erro ao carregar dataset: " << e.what() << "\n";
+        std::cerr << "Erro: " << e.what() << "\n";
         return 1;
     }
 
-    // Hiperparâmetros
-    const int n_trees           = 50;
-    const int max_depth         = 8;
-    const int min_samples_split = 5;
+    // 2. Configurar Hiperparâmetros (Conforme sua imagem)
+    const int N_TREES = 50;
+    const int MAX_DEPTH = 8;
+    const int MIN_SAMPLES_SPLIT = 5;
+    
+    // Instancia a classe unificada
+    RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT);
 
-    double total_train_ms = 0.0;
+    double total_ms = 0.0;
 
-    RandomForestBaseline forest(n_trees, max_depth, min_samples_split);
-
+    // 3. Loop de Treino
     for (int run = 0; run < num_runs; ++run) {
-        std::cout << "Iteracao " << (run + 1) << "/" << num_runs << "...\n";
-        auto start_train = std::chrono::high_resolution_clock::now();
-        forest.fit(X, y);
-        auto end_train   = std::chrono::high_resolution_clock::now();
-
-        double train_ms =
-            std::chrono::duration<double, std::milli>(end_train - start_train).count();
-        total_train_ms += train_ms;
-        std::cout << "  Tempo treino: " << train_ms << " ms\n";
+        std::cout << "Run " << (run + 1) << "/" << num_runs << "... ";
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        // --- AQUI ESTÁ A DIFERENÇA ---
+        // false = Modo Baseline (Lento, Row-Major, O(N^2))
+        forest.fit(X, y, false); 
+        
+        auto end = std::chrono::high_resolution_clock::now();
+        double ms = std::chrono::duration<double, std::milli>(end - start).count();
+        total_ms += ms;
+        std::cout << ms << " ms\n";
     }
 
-    double avg_train_ms = total_train_ms / num_runs;
-
-    // Salvar modelo treinado (da última execução)
+    // 4. Salvar e Relatar
     std::cout << "\nSalvando modelo em: " << model_path << "\n";
-    forest.save_model(model_path);
+    forest.save_model(model_path); // Certifique-se que RandomForest tem save_model implementado
 
-    std::cout << "\n================= RESULTADOS TREINO =====================\n";
-    std::cout << std::setw(25) << "Tempo Treino Medio (ms)"
-              << std::setw(20) << std::fixed << std::setprecision(4)
-              << avg_train_ms << "\n";
-    std::cout << "========================================================\n";
+    double avg_ms = total_ms / num_runs;
+    std::cout << "Media Baseline: " << avg_ms << " ms\n";
 
-    // CSV simples com tempo de treino
-    std::string csv_name = "results_forest_baseline_train_" +
-                           get_filename_only(dataset_path) + ".csv";
+    // CSV para logs
+    std::string csv_name = "results_forest_baseline_train_" + get_filename_only(dataset_path) + ".csv";
     std::ofstream csv(csv_name);
-    csv << "Metodo,Dataset,MaxSamples,NumRuns,TempoTreinoMedio(ms),Modelo\n";
-    csv << "RandomForestBaselineTrain,"
-        << get_filename_only(dataset_path) << ","
-        << max_samples << ","
-        << num_runs << ","
-        << avg_train_ms << ","
-        << model_path << "\n";
-    csv.close();
-
-    std::cout << "Resultados salvos em: " << csv_name << "\n";
+    csv << "Metodo,Dataset,MaxSamples,Runs,TempoMedio(ms)\n";
+    csv << "Baseline," << get_filename_only(dataset_path) << "," << max_samples << "," << num_runs << "," << avg_ms << "\n";
+    
     return 0;
 }

@@ -78,7 +78,7 @@ for idx, dataset in enumerate(datasets):
     
     # Título com informações do dataset
     features_info = '64 features' if dataset == 'optdigits' else '14 features' if dataset == 'adult' else '3 features'
-    ax.set_title(f'Treinamento - {dataset_names[dataset]} ({features_info})\nRandom Forest com Chunks de 100', 
+    ax.set_title(f'Treinamento - {dataset_names[dataset]} ({features_info})', 
                  fontsize=13, fontweight='bold')
     
     ax.set_xticks(x)
@@ -121,7 +121,7 @@ for idx, dataset in enumerate(datasets):
     
     # Título com informações do dataset
     features_info = '64 features' if dataset == 'optdigits' else '14 features' if dataset == 'adult' else '3 features'
-    ax.set_title(f'Predição - {dataset_names[dataset]} ({features_info})\nRandom Forest com Chunks de 100', 
+    ax.set_title(f'Predição - {dataset_names[dataset]} ({features_info})', 
                  fontsize=13, fontweight='bold')
     
     ax.set_xticks(x)
