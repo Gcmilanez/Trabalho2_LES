@@ -35,16 +35,16 @@ public:
     DecisionTree(const DecisionTree&) = delete;
     DecisionTree& operator=(const DecisionTree&) = delete;
 
-    // --- MÉTODOS DE TREINO (Ambos recebem FLAT memory agora) ---
+    // --- MÉTODOS DE TREINO ---
     
-    // Baseline: Recebe Flat, mas faz alocação dinâmica e sem chunks
+    // Baseline: Agora usa Buffer Estático, mas mantém acesso aleatório (Bootstrap padrão)
     void fit_baseline(const std::vector<double>& X_flat,
                       int n_samples,
                       int n_features,
                       const std::vector<int>& y,
                       const std::vector<int>& indices);
 
-    // Otimizado: Recebe Flat, usa Zero-Alloc e Chunks
+    // Otimizado: Usa Buffer Estático + Acesso Linear (Sorted Indices) + Chunks
     void fit_optimized(const std::vector<double>& X_flat,
                        int n_samples,
                        int n_features,
@@ -64,10 +64,9 @@ private:
     int chunk_size;
     bool use_optimized_mode; 
 
-    // Buffer de Reuso (Apenas Otimizado)
+    // Buffer Compartilhado (Usado tanto no Baseline quanto no Otimizado)
     std::vector<std::pair<double, int>> sort_buffer; 
 
-    // Construtor Recursivo
     std::unique_ptr<Node> build_tree(const std::vector<double>* X_flat,
                                      int n_total_samples,
                                      int n_features,
@@ -75,10 +74,9 @@ private:
                                      const std::vector<int>& indices,
                                      int depth);
 
-    // --- 1. BASELINE SPLIT (Flat Memory + Naive Logic) ---
-    // Agora lê de memória plana, mas sem otimização de chunks/buffer
+    // --- BASELINE SPLIT (Buffer Reuse + Random Access) ---
     void find_best_split_naive(const std::vector<double>& X_flat,
-                               int n_total_samples, // Necessário para offset
+                               int n_total_samples,
                                int n_features,
                                const std::vector<int>& y,
                                const std::vector<int>& indices,
@@ -88,7 +86,7 @@ private:
                                std::vector<int>& right_idx,
                                double parent_gini);
 
-    // --- 2. OPTIMIZED SPLIT (Flat Memory + Cache Friendly) ---
+    // --- OPTIMIZED SPLIT (Buffer Reuse + Linear Access + Chunks) ---
     void find_best_split_optimized(const std::vector<double>& X_flat,
                                    int n_total_samples,
                                    int n_features,

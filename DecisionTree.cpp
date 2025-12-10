@@ -19,7 +19,11 @@ void DecisionTree::fit_baseline(const std::vector<double>& X_flat,
                                 const std::vector<int>& indices)
 {
     this->use_optimized_mode = false;
-    // Passa X_flat (o ponteiro é único agora)
+    
+    // [MELHORIA] Alocação Estática/Pool também no Baseline
+    // Agora o Baseline é "inteligente" com memória, mas "ingênuo" com cache.
+    sort_buffer.reserve(n_samples); 
+    
     root = build_tree(&X_flat, n_samples, n_features, y, indices, 0);
 }
 
@@ -35,7 +39,7 @@ void DecisionTree::fit_optimized(const std::vector<double>& X_flat,
 }
 
 // ============================================================
-// BUILD TREE (Unificado na assinatura, diverged na lógica)
+// BUILD TREE
 // ============================================================
 std::unique_ptr<Node> DecisionTree::build_tree(
     const std::vector<double>* X_flat,
@@ -89,7 +93,7 @@ std::unique_ptr<Node> DecisionTree::build_tree(
 }
 
 // ============================================================
-// 1. NAIVE SPLIT (Agora lê Column-Major, mas sem otimizações extras)
+// 1. NAIVE SPLIT (Atualizado para Zero-Alloc)
 // ============================================================
 void DecisionTree::find_best_split_naive(
     const std::vector<double>& X_flat,
@@ -106,7 +110,6 @@ void DecisionTree::find_best_split_naive(
     const size_t n_node_samples = indices.size();
     double best_gain = -1.0;
 
-    // Feature Subsampling
     int n_subset = (int)std::sqrt(n_features);
     if (n_subset < 1) n_subset = 1;
     std::vector<int> feature_indices(n_features);
@@ -114,9 +117,8 @@ void DecisionTree::find_best_split_naive(
     static thread_local std::mt19937 gen(std::random_device{}());
     std::shuffle(feature_indices.begin(), feature_indices.end(), gen);
 
-    // [DIFERENÇA] Alocação Local (Ineficiência proposital)
-    std::vector<std::pair<double, int>> values;
-    values.reserve(n_node_samples);
+    // NÃO ALOCA MAIS BUFFER LOCAL AQUI!
+    // Usamos o membro da classe 'sort_buffer' para evitar overhead de malloc
 
     int max_label = 0; for(int idx : indices) if(y[idx] > max_label) max_label = y[idx];
     int num_classes = max_label + 1;
@@ -126,20 +128,22 @@ void DecisionTree::find_best_split_naive(
     for (int k = 0; k < n_subset; ++k) {
         int f = feature_indices[k];
 
-        // [DIFERENÇA] Lê de X_flat, mas copia para 'values' sem chunks
-        values.clear();
-        
-        // Ponteiro para o início da coluna (Memória Contígua)
+        // [BASELINE] 
+        // 1. Reuso de Buffer (Rápido)
+        // 2. Loop Simples (Cache Hostile): Não usa chunks, apenas cópia direta
+        sort_buffer.clear(); 
         const double* feature_ptr = &X_flat[f * n_total_samples];
-
+        
         for (int idx : indices) {
-            // Acesso direto via ponteiro (Rápido, mas o loop é simples)
-            values.push_back({ feature_ptr[idx], idx });
+            // Como 'indices' aqui vem do Bootstrap Aleatório (não ordenado),
+            // este acesso 'feature_ptr[idx]' pula memória para frente e para trás.
+            // Isso gera Cache Misses, mesmo com buffer reutilizado.
+            sort_buffer.push_back({ feature_ptr[idx], idx });
         }
 
-        std::sort(values.begin(), values.end());
+        std::sort(sort_buffer.begin(), sort_buffer.end());
 
-        // ... Lógica de Scan idêntica ...
+        // ... Scan idêntico ...
         std::fill(left_counts.begin(), left_counts.end(), 0);
         std::fill(right_counts.begin(), right_counts.end(), 0);
         for (int idx : indices) right_counts[y[idx]]++;
@@ -151,7 +155,7 @@ void DecisionTree::find_best_split_naive(
         double size_right = (double)n_node_samples;
 
         for (size_t i = 0; i < n_node_samples - 1; i++) {
-            int idx = values[i].second;
+            int idx = sort_buffer[i].second;
             int label = y[idx];
 
             int c_r = right_counts[label];
@@ -166,7 +170,7 @@ void DecisionTree::find_best_split_naive(
             
             size_left++; size_right--;
 
-            if (values[i].first == values[i+1].first) continue;
+            if (sort_buffer[i].first == sort_buffer[i+1].first) continue;
 
             double gini_left = 1.0 - (sum_sq_left / (size_left * size_left));
             double gini_right = 1.0 - (sum_sq_right / (size_right * size_right));
@@ -175,14 +179,13 @@ void DecisionTree::find_best_split_naive(
             if (gain > best_gain) {
                 best_gain = gain;
                 best_feature = f;
-                best_threshold = (values[i].first + values[i+1].first) / 2.0;
+                best_threshold = (sort_buffer[i].first + sort_buffer[i+1].first) / 2.0;
             }
         }
     }
 
     if (best_gain > 0.0) {
         left_idx.reserve(n_node_samples); right_idx.reserve(n_node_samples);
-        // Usa o X_flat para reconstruir também
         const double* feature_ptr = &X_flat[best_feature * n_total_samples];
         for (int idx : indices) {
             if (feature_ptr[idx] <= best_threshold) left_idx.push_back(idx);
@@ -192,7 +195,7 @@ void DecisionTree::find_best_split_naive(
 }
 
 // ============================================================
-// 2. OPTIMIZED SPLIT (Chunks + Buffer Reuse)
+// 2. OPTIMIZED SPLIT (Chunks + Buffer Reuse + Sorted Indices)
 // ============================================================
 void DecisionTree::find_best_split_optimized(
     const std::vector<double>& X_flat,
@@ -206,6 +209,10 @@ void DecisionTree::find_best_split_optimized(
     std::vector<int>& right_idx,
     double parent_gini)
 {
+    // ... (Mantido idêntico à versão anterior, pois já está ótimo)
+    // Este método também usa sort_buffer, mas ganha performance
+    // porque 'indices' vem ordenado (acesso linear) e usa Chunks.
+    
     double best_gain = -1.0;
     size_t n_node_samples = indices.size();
 
@@ -225,11 +232,10 @@ void DecisionTree::find_best_split_optimized(
     for (int k = 0; k < n_subset; ++k) {
         int f = feature_indices[k];
         
-        // [DIFERENÇA] Reuso de buffer (Zero Alloc)
         sort_buffer.clear(); 
         const double* feature_ptr = &X_flat[f * n_total_samples];
 
-        // [DIFERENÇA] CHUNKS DE 100 (Cache L1 Optimization)
+        // CHUNKS DE 100
         for (size_t chunk_start = 0; chunk_start < n_node_samples; chunk_start += chunk_size) {
             size_t chunk_end = std::min(chunk_start + (size_t)chunk_size, n_node_samples);
             for (size_t i = chunk_start; i < chunk_end; i++) {
@@ -240,7 +246,7 @@ void DecisionTree::find_best_split_optimized(
         
         std::sort(sort_buffer.begin(), sort_buffer.end());
 
-        // ... Scan Lógica idêntica ...
+        // ... Scan ...
         std::memset(left_counts.data(), 0, num_classes * sizeof(int));
         std::memset(right_counts.data(), 0, num_classes * sizeof(int));
         for (int idx : indices) right_counts[y[idx]]++;
@@ -291,7 +297,7 @@ void DecisionTree::find_best_split_optimized(
     }
 }
 
-// Helpers...
+// Helpers... (Iguais)
 double DecisionTree::calculate_gini(const std::vector<int>& labels) const {
     if (labels.empty()) return 0.0;
     std::unordered_map<int, int> counts;

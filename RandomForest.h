@@ -13,29 +13,15 @@ public:
                  int min_samples_split = 5,
                  int chunk_size = 256);
 
-    // --- MÉTODOS DE TREINO SEPARADOS ---
-    
-    // Baseline:
-    // - Converte para Flat Memory (para permitir a chamada da árvore)
-    // - Usa Bootstrap Aleatório (Padrão Sklearn)
-    // - Chama a árvore no modo "Lento" (sem chunks, com alocação dinâmica)
     void fit_baseline(const std::vector<std::vector<double>>& X,
                       const std::vector<int>& y);
 
-    // Otimizado:
-    // - Converte para Flat Memory
-    // - Usa Índices Cache-Friendly (Linear)
-    // - Chama a árvore no modo "Rápido" (com chunks, zero alloc)
     void fit_optimized(const std::vector<std::vector<double>>& X,
                        const std::vector<int>& y);
 
-    // Predição
     std::vector<int> predict(const std::vector<std::vector<double>>& X) const;
-
-    // Serialização
     void save_model(const std::string& filename) const;
     void load_model(const std::string& filename);
-
     int get_num_trees() const { return n_trees; }
 
 private:
@@ -46,20 +32,9 @@ private:
 
     std::vector<DecisionTree> trees;
     mutable std::vector<int> vote_buffer;
-    std::vector<int> base_indices; 
     
-    // Helpers internos de amostragem
     void bootstrap_indices(int n_samples, std::vector<int>& out) const; 
-    void init_base_indices(int n_samples); 
-    void make_cache_friendly_indices(int n_samples, int tree_id, std::vector<int>& out) const; 
-    
     int majority_vote(const std::vector<int>& votes) const;
 };
 
 #endif // RANDOM_FOREST_H
-
-/*
-sudo sysctl -w kernel.perf_event_paranoid=0
-./train_all.sh
-./predict_all.sh
-*/
