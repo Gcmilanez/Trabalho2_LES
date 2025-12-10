@@ -1,0 +1,25 @@
+# started on Tue Dec  9 23:43:42 2025
+
+
+ Performance counter stats for './forest_baseline_predict optdigits.csv models/baseline_optdigits_0.5k.model 500 5':
+
+         2.823.809      L1-dcache-load                                                       (32,95%)
+           208.720      L1-dcache-load-misses            #    7,39% of all L1-dcache accesses
+           233.860      l2_cache_accesses_from_dc_misses                                   
+           202.282      l2_cache_hits_from_dc_misses                                       
+            26.256      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+         9.604.456      branch-load                                                          (67,05%)
+     <not counted>      branch-load-misses                                            (0,00%)
+
+       0,004701789 seconds time elapsed
+
+       0,004652000 seconds user
+       0,000000000 seconds sys
+
+
+Some events weren't counted. Try disabling the NMI watchdog:
+	echo 0 > /proc/sys/kernel/nmi_watchdog
+	perf stat ...
+	echo 1 > /proc/sys/kernel/nmi_watchdog

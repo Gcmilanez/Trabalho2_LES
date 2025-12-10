@@ -1,0 +1,21 @@
+# started on Tue Dec  9 23:43:43 2025
+
+
+ Performance counter stats for './forest_optimized_predict skin_segmentation.csv models/optimized_skin_245.1k.model 245057 5':
+
+     1.325.329.595      L1-dcache-load                                                       (70,83%)
+       135.953.274      L1-dcache-load-misses            #   10,26% of all L1-dcache accesses  (70,80%)
+       137.671.825      l2_cache_accesses_from_dc_misses                                     (71,28%)
+       130.768.412      l2_cache_hits_from_dc_misses                                         (71,32%)
+         2.363.878      l2_cache_misses_from_dc_misses                                       (72,12%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+       780.691.955      branch-load                                                          (72,45%)
+         1.760.308      branch-load-misses                                                   (71,21%)
+
+       0,331705158 seconds time elapsed
+
+       0,314753000 seconds user
+       0,016141000 seconds sys
+
+

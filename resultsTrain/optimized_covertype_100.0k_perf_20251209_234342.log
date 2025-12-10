@@ -1,0 +1,25 @@
+# started on Tue Dec  9 23:43:42 2025
+
+
+ Performance counter stats for './forest_optimized_train covertype_dataset.csv 100000 1 models/optimized_covertype_100.0k.model':
+
+         1.315.642      L1-dcache-load                                                     
+            52.445      L1-dcache-load-misses            #    3,99% of all L1-dcache accesses
+            72.968      l2_cache_accesses_from_dc_misses                                   
+            55.899      l2_cache_hits_from_dc_misses                                       
+            14.333      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+     <not counted>      branch-load                                                   (0,00%)
+     <not counted>      branch-load-misses                                            (0,00%)
+
+       0,001831329 seconds time elapsed
+
+       0,001966000 seconds user
+       0,000000000 seconds sys
+
+
+Some events weren't counted. Try disabling the NMI watchdog:
+	echo 0 > /proc/sys/kernel/nmi_watchdog
+	perf stat ...
+	echo 1 > /proc/sys/kernel/nmi_watchdog
