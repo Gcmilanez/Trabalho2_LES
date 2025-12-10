@@ -5,75 +5,74 @@
 #include <unordered_map>
 #include <iostream>
 
-// ============================================================
-// CONSTRUTOR
-// ============================================================
 RandomForest::RandomForest(int n_trees, int max_depth, int min_samples_split, int chunk_size)
-    : n_trees(n_trees),
-      max_depth(max_depth),
-      min_samples_split(min_samples_split),
-      chunk_size(chunk_size)
+    : n_trees(n_trees), max_depth(max_depth), min_samples_split(min_samples_split), chunk_size(chunk_size)
 {
     trees.reserve(n_trees);
 }
 
 // ============================================================
-// FIT (O CÉREBRO DA UNIFICAÇÃO)
+// FIT BASELINE (Memória Padrão, Bootstrap Padrão)
 // ============================================================
-void RandomForest::fit(const std::vector<std::vector<double>>& X,
-                       const std::vector<int>& y,
-                       bool use_optimized)
+void RandomForest::fit_baseline(const std::vector<std::vector<double>>& X,
+                                const std::vector<int>& y)
 {
-    trees.clear();
-    trees.reserve(n_trees);
+    trees.clear(); trees.reserve(n_trees);
     int n_samples = X.size();
+    std::vector<int> indices; 
+    indices.reserve(n_samples);
 
-    // Buffers locais para índices
+    for (int t = 0; t < n_trees; t++) {
+        bootstrap_indices(n_samples, indices); // Amostragem com reposição
+        
+        DecisionTree dt(max_depth, min_samples_split, chunk_size);
+        dt.fit_baseline(X, y, indices); // Chama método Baseline
+        
+        trees.push_back(std::move(dt));
+    }
+}
+
+// ============================================================
+// FIT OTIMIZADO (Global Flat Memory, Cache Indices)
+// ============================================================
+void RandomForest::fit_optimized(const std::vector<std::vector<double>>& X,
+                                 const std::vector<int>& y)
+{
+    trees.clear(); trees.reserve(n_trees);
+    int n_samples = X.size();
+    int n_features = X[0].size();
+
+    // 1. Preparação Global da Memória (Flattening)
+    std::vector<double> X_flat_global(n_samples * n_features);
+    for (int f = 0; f < n_features; f++) {
+        for (int i = 0; i < n_samples; i++) {
+            X_flat_global[f * n_samples + i] = X[i][f];
+        }
+    }
+
+    // 2. Preparação de Índices
+    init_base_indices(n_samples);
     std::vector<int> indices;
     indices.reserve(n_samples);
 
-    if (use_optimized) {
-        // --- PREPARAÇÃO OTIMIZADA ---
-        // Inicializa índices base embaralhados uma única vez
-        init_base_indices(n_samples);
-    }
-
     for (int t = 0; t < n_trees; t++) {
-        
-        // 1. GERAÇÃO DE ÍNDICES (AMOSTRAGEM)
-        if (!use_optimized) {
-            // Modo Baseline: Bootstrap padrão (Sorteio aleatório a cada árvore)
-            bootstrap_indices(n_samples, indices);
-        } else {
-            // Modo Otimizado: Offset determinístico sobre base embaralhada (Melhor Cache)
-            make_cache_friendly_indices(n_samples, t, indices);
-        }
+        make_cache_friendly_indices(n_samples, t, indices);
 
-        // 2. CRIAÇÃO E TREINO DA ÁRVORE
-        // Repassa parâmetros + flag de otimização para a DecisionTree
-        DecisionTree tree(max_depth, min_samples_split, chunk_size);
+        DecisionTree dt(max_depth, min_samples_split, chunk_size);
+        dt.fit_optimized(X_flat_global, n_samples, n_features, y, indices); // Chama método Otimizado
         
-        // A DecisionTree também tem um 'fit' que aceita use_chunks/use_optimized
-        tree.fit(X, y, use_optimized, &indices);
-
-        trees.emplace_back(std::move(tree));
+        trees.push_back(std::move(dt));
     }
 }
 
-// ============================================================
-// AUXILIARES: BASELINE
-// ============================================================
+// Auxiliares (bootstrap, init_base...) e Serialização padrão
 void RandomForest::bootstrap_indices(int n_samples, std::vector<int>& out) const {
     static thread_local std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<int> dist(0, n_samples - 1);
-    
     out.clear();
     for(int i=0; i<n_samples; ++i) out.push_back(dist(gen));
 }
 
-// ============================================================
-// AUXILIARES: OTIMIZADO
-// ============================================================
 void RandomForest::init_base_indices(int n_samples) {
     base_indices.resize(n_samples);
     std::iota(base_indices.begin(), base_indices.end(), 0);
@@ -83,21 +82,16 @@ void RandomForest::init_base_indices(int n_samples) {
 
 void RandomForest::make_cache_friendly_indices(int n_samples, int tree_id, std::vector<int>& out) const {
     out.resize(n_samples);
-    // Estratégia de offset circular: evita random access patterns aleatórios demais
     int offset = (tree_id * chunk_size) % n_samples;
     for(int i=0; i<n_samples; ++i) {
         out[i] = base_indices[(i + offset) % n_samples];
     }
 }
 
-// ============================================================
-// PREDIÇÃO (COMUM PARA AMBOS)
-// ============================================================
 std::vector<int> RandomForest::predict(const std::vector<std::vector<double>>& X) const {
     std::vector<int> predictions;
     predictions.reserve(X.size());
     vote_buffer.resize(n_trees);
-
     for (const auto& sample : X) {
         for (int t = 0; t < n_trees; t++) {
             vote_buffer[t] = trees[t].predict_one(sample);
@@ -110,7 +104,6 @@ std::vector<int> RandomForest::predict(const std::vector<std::vector<double>>& X
 int RandomForest::majority_vote(const std::vector<int>& votes) const {
     std::unordered_map<int, int> freq;
     for (int v : votes) freq[v]++;
-    
     int best_class = -1, best_count = -1;
     for (auto& kv : freq) {
         if (kv.second > best_count) {
@@ -121,30 +114,23 @@ int RandomForest::majority_vote(const std::vector<int>& votes) const {
     return best_class;
 }
 
-// ============================================================
-// SERIALIZAÇÃO
-// ============================================================
 void RandomForest::save_model(const std::string& filename) const {
     std::ofstream out(filename, std::ios::binary);
     if (!out) throw std::runtime_error("Erro ao salvar modelo: " + filename);
-
-    out.write(reinterpret_cast<const char*>(&n_trees), sizeof(n_trees));
-    out.write(reinterpret_cast<const char*>(&max_depth), sizeof(max_depth));
-    out.write(reinterpret_cast<const char*>(&min_samples_split), sizeof(min_samples_split));
-    out.write(reinterpret_cast<const char*>(&chunk_size), sizeof(chunk_size));
-
+    out.write((char*)&n_trees, sizeof(int));
+    out.write((char*)&max_depth, sizeof(int));
+    out.write((char*)&min_samples_split, sizeof(int));
+    out.write((char*)&chunk_size, sizeof(int));
     for (const auto& tree : trees) tree.save_model(out);
 }
 
 void RandomForest::load_model(const std::string& filename) {
     std::ifstream in(filename, std::ios::binary);
     if (!in) throw std::runtime_error("Erro ao ler modelo: " + filename);
-
-    in.read(reinterpret_cast<char*>(&n_trees), sizeof(n_trees));
-    in.read(reinterpret_cast<char*>(&max_depth), sizeof(max_depth));
-    in.read(reinterpret_cast<char*>(&min_samples_split), sizeof(min_samples_split));
-    in.read(reinterpret_cast<char*>(&chunk_size), sizeof(chunk_size));
-
+    in.read((char*)&n_trees, sizeof(int));
+    in.read((char*)&max_depth, sizeof(int));
+    in.read((char*)&min_samples_split, sizeof(int));
+    in.read((char*)&chunk_size, sizeof(int));
     trees.clear();
     trees.reserve(n_trees);
     for (int t = 0; t < n_trees; t++) {

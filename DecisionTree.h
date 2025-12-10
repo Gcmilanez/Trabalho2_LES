@@ -18,11 +18,14 @@ struct Node {
 
 class DecisionTree {
 public:
-    static constexpr int DEFAULT_CHUNK_SIZE = 256;
+    static constexpr int DEFAULT_CHUNK_SIZE = 100;
 
     DecisionTree(int max_depth = 10, 
                  int min_samples_split = 2, 
                  int chunk_size = DEFAULT_CHUNK_SIZE);
+
+    // Construtor Padrão
+    DecisionTree() : DecisionTree(10, 2, DEFAULT_CHUNK_SIZE) {}
 
     // Movimentação
     DecisionTree(DecisionTree&&) noexcept = default;
@@ -30,10 +33,17 @@ public:
     DecisionTree(const DecisionTree&) = delete;
     DecisionTree& operator=(const DecisionTree&) = delete;
 
-    void fit(const std::vector<std::vector<double>>& X,
-             const std::vector<int>& y,
-             bool use_optimized,
-             const std::vector<int>* bootstrap_indices = nullptr);
+    // --- ENTRADA 1: BASELINE (Lento / Padrão) ---
+    void fit_baseline(const std::vector<std::vector<double>>& X,
+                      const std::vector<int>& y,
+                      const std::vector<int>& indices);
+
+    // --- ENTRADA 2: OTIMIZADO (Rápido / Flat) ---
+    void fit_optimized(const std::vector<double>& X_flat,
+                       int n_samples,
+                       int n_features,
+                       const std::vector<int>& y,
+                       const std::vector<int>& indices);
 
     std::vector<int> predict(const std::vector<std::vector<double>>& X) const;
     int predict_one(const std::vector<double>& sample) const;
@@ -46,24 +56,24 @@ private:
     int max_depth;
     int min_samples_split;
     int chunk_size;
-    bool use_optimized_mode;
+    bool use_optimized_mode; // Apenas para saber qual fluxo seguir na recursão
 
-    // --- ESTRUTURAS DE HISTOGRAMA (Novo) ---
-    // Mapeia o índice do bin (0-255) de volta para o valor real (double)
-    // bin_thresholds[feature_idx][bin_idx]
-    std::vector<std::vector<double>> bin_thresholds;
+    // Buffer de Reuso (Apenas para o método otimizado)
+    std::vector<std::pair<double, int>> sort_buffer; 
 
-    // Métodos Internos
-    std::unique_ptr<Node> build_tree(const std::vector<std::vector<double>>* X_naive,
-                                     const std::vector<uint8_t>* X_binned, // Usa uint8 agora!
+    // Construtor Recursivo
+    std::unique_ptr<Node> build_tree(const std::vector<std::vector<double>>* X_row,
+                                     const std::vector<double>* X_flat,
                                      int n_total_samples,
                                      int n_features,
                                      const std::vector<int>& y,
                                      const std::vector<int>& indices,
                                      int depth);
 
-    // BASELINE (Igual ao Sklearn: O(N log N))
+    // --- IMPLEMENTAÇÃO 1: NAIVE ---
+    // Acesso Row-Major, Alocação Local (Ineficiente)
     void find_best_split_naive(const std::vector<std::vector<double>>& X,
+                               int n_features,
                                const std::vector<int>& y,
                                const std::vector<int>& indices,
                                int& best_feature,
@@ -72,8 +82,9 @@ private:
                                std::vector<int>& right_idx,
                                double parent_gini);
 
-    // OPTIMIZED (HISTOGRAMAS: O(N))
-    void find_best_split_histogram(const std::vector<uint8_t>& X_binned,
+    // --- IMPLEMENTAÇÃO 2: OTIMIZADA ---
+    // Acesso Column-Major, Reuso de Buffer, Chunks (Eficiente)
+    void find_best_split_optimized(const std::vector<double>& X_flat,
                                    int n_total_samples,
                                    int n_features,
                                    const std::vector<int>& y,
@@ -84,15 +95,9 @@ private:
                                    std::vector<int>& right_idx,
                                    double parent_gini);
 
-    // Helpers
     double calculate_gini(const std::vector<int>& labels) const;
     int majority_class(const std::vector<int>& labels) const;
     int predict_sample(const std::vector<double>& sample, const Node* node) const;
-    
-    // Auxiliar para criar os bins
-    void discretize_features(const std::vector<std::vector<double>>& X,
-                             std::vector<uint8_t>& X_binned,
-                             std::vector<std::vector<double>>& thresholds);
 
     void save_node(std::ostream& out, const Node* node) const;
     std::unique_ptr<Node> load_node(std::istream& in);
