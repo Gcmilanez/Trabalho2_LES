@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // 2. Configurar Hiperparâmetros (Conforme sua imagem)
+    // 2. Configurar Hiperparâmetros
     const int N_TREES = 50;
     const int MAX_DEPTH = 8;
     const int MIN_SAMPLES_SPLIT = 5;
@@ -55,10 +55,7 @@ int main(int argc, char** argv) {
     for (int run = 0; run < num_runs; ++run) {
         std::cout << "Run " << (run + 1) << "/" << num_runs << "... ";
         auto start = std::chrono::high_resolution_clock::now();
-        
-        // --- AQUI ESTÁ A DIFERENÇA ---
-        // false = Modo Baseline (Lento, Row-Major, O(N^2))
-        forest.fit(X, y, false); 
+        forest.fit_baseline(X, y); 
         
         auto end = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(end - start).count();
@@ -68,7 +65,7 @@ int main(int argc, char** argv) {
 
     // 4. Salvar e Relatar
     std::cout << "\nSalvando modelo em: " << model_path << "\n";
-    forest.save_model(model_path); // Certifique-se que RandomForest tem save_model implementado
+    forest.save_model(model_path);
 
     double avg_ms = total_ms / num_runs;
     std::cout << "Media Baseline: " << avg_ms << " ms\n";

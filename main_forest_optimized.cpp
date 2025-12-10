@@ -16,7 +16,7 @@ std::string get_filename_only(const std::string& path) {
 int main(int argc, char** argv) {
     std::cout << "========================================================\n";
     std::cout << "   Random Forest (OTIMIZADA): TREINO\n";
-    std::cout << "   [Parametros: 50 arvores, Depth 8, Split 5, Chunk 256]\n";
+    std::cout << "   [Parametros: 50 arvores, Depth 8, Split 5, Chunk 100]\n";
     std::cout << "========================================================\n\n";
 
     if (argc < 2) {
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     const int N_TREES = 50;
     const int MAX_DEPTH = 8;
     const int MIN_SAMPLES_SPLIT = 5;
-    const int CHUNK_SIZE = 256; // Ajustado para L1 Cache
+    const int CHUNK_SIZE = 100; // Ajustado para L1 Cache
 
     // Instancia com Chunk Size
     RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT, CHUNK_SIZE);
@@ -54,10 +54,7 @@ int main(int argc, char** argv) {
     for (int run = 0; run < num_runs; ++run) {
         std::cout << "Run " << (run + 1) << "/" << num_runs << "... ";
         auto start = std::chrono::high_resolution_clock::now();
-        
-        // --- AQUI ESTÁ A DIFERENÇA ---
-        // true = Modo Otimizado (Rápido, Column-Major, Chunks, Buffer Reuse)
-        forest.fit(X, y, true); 
+        forest.fit_optimized(X, y); 
         
         auto end = std::chrono::high_resolution_clock::now();
         double ms = std::chrono::duration<double, std::milli>(end - start).count();
