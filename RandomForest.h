@@ -13,17 +13,23 @@ public:
                  int min_samples_split = 5,
                  int chunk_size = 256);
 
-    // --- MUDANÇA AQUI: Métodos Separados ---
+    // --- MÉTODOS DE TREINO SEPARADOS ---
     
-    // Método 1: Baseline (Recebe dados brutos e treina lento)
+    // Baseline:
+    // - Converte para Flat Memory (para permitir a chamada da árvore)
+    // - Usa Bootstrap Aleatório (Padrão Sklearn)
+    // - Chama a árvore no modo "Lento" (sem chunks, com alocação dinâmica)
     void fit_baseline(const std::vector<std::vector<double>>& X,
                       const std::vector<int>& y);
 
-    // Método 2: Otimizado (Faz o Flattening Global e treina rápido)
+    // Otimizado:
+    // - Converte para Flat Memory
+    // - Usa Índices Cache-Friendly (Linear)
+    // - Chama a árvore no modo "Rápido" (com chunks, zero alloc)
     void fit_optimized(const std::vector<std::vector<double>>& X,
                        const std::vector<int>& y);
 
-    // Predição (igual para ambos)
+    // Predição
     std::vector<int> predict(const std::vector<std::vector<double>>& X) const;
 
     // Serialização
@@ -42,10 +48,11 @@ private:
     mutable std::vector<int> vote_buffer;
     std::vector<int> base_indices; 
     
-    // Helpers internos
+    // Helpers internos de amostragem
     void bootstrap_indices(int n_samples, std::vector<int>& out) const; 
     void init_base_indices(int n_samples); 
     void make_cache_friendly_indices(int n_samples, int tree_id, std::vector<int>& out) const; 
+    
     int majority_vote(const std::vector<int>& votes) const;
 };
 

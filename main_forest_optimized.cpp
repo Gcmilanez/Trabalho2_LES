@@ -1,6 +1,5 @@
-#include "RandomForest.h" // Classe unificada
+#include "RandomForest.h"
 #include "DataLoader.h"
-
 #include <iostream>
 #include <chrono>
 #include <fstream>
@@ -15,8 +14,7 @@ std::string get_filename_only(const std::string& path) {
 
 int main(int argc, char** argv) {
     std::cout << "========================================================\n";
-    std::cout << "   Random Forest (OTIMIZADA): TREINO\n";
-    std::cout << "   [Parametros: 50 arvores, Depth 8, Split 5, Chunk 100]\n";
+    std::cout << "   Random Forest (OTIMIZADA / CACHE-AWARE): TREINO\n";
     std::cout << "========================================================\n\n";
 
     if (argc < 2) {
@@ -40,13 +38,12 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Parâmetros da Imagem + Otimização de Cache
+    // Configuração
     const int N_TREES = 50;
     const int MAX_DEPTH = 8;
     const int MIN_SAMPLES_SPLIT = 5;
-    const int CHUNK_SIZE = 100; // Ajustado para L1 Cache
+    const int CHUNK_SIZE = 100; // Usado pelo otimizado (Cache L1)
 
-    // Instancia com Chunk Size
     RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT, CHUNK_SIZE);
 
     double total_ms = 0.0;
@@ -54,6 +51,8 @@ int main(int argc, char** argv) {
     for (int run = 0; run < num_runs; ++run) {
         std::cout << "Run " << (run + 1) << "/" << num_runs << "... ";
         auto start = std::chrono::high_resolution_clock::now();
+        
+        // [DIFERENÇA CRUCIAL] Chama o método Otimizado
         forest.fit_optimized(X, y); 
         
         auto end = std::chrono::high_resolution_clock::now();

@@ -1,6 +1,5 @@
-#include "RandomForest.h" // Classe unificada
+#include "RandomForest.h"
 #include "DataLoader.h"
-
 #include <iostream>
 #include <chrono>
 #include <fstream>
@@ -15,8 +14,7 @@ std::string get_filename_only(const std::string& path) {
 
 int main(int argc, char** argv) {
     std::cout << "========================================================\n";
-    std::cout << "   Random Forest (Baseline): TREINO\n";
-    std::cout << "   [Parametros da Imagem: 50 arvores, Depth 8, Split 5]\n";
+    std::cout << "   Random Forest (BASELINE / SKLEARN-LIKE): TREINO\n";
     std::cout << "========================================================\n\n";
 
     if (argc < 2) {
@@ -29,7 +27,6 @@ int main(int argc, char** argv) {
     int num_runs = (argc >= 4) ? std::stoi(argv[3]) : 1;
     std::string model_path = (argc >= 5) ? argv[4] : "models/baseline_model.bin";
 
-    // 1. Carregar Dataset
     std::vector<std::vector<double>> X;
     std::vector<int> y;
     try {
@@ -41,20 +38,21 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // 2. Configurar Hiperparâmetros
+    // Configuração
     const int N_TREES = 50;
     const int MAX_DEPTH = 8;
     const int MIN_SAMPLES_SPLIT = 5;
-    
-    // Instancia a classe unificada
-    RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT);
+    const int CHUNK_SIZE = 100; // Ignorado pelo baseline, mas passado para construtor
+
+    RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT, CHUNK_SIZE);
 
     double total_ms = 0.0;
 
-    // 3. Loop de Treino
     for (int run = 0; run < num_runs; ++run) {
         std::cout << "Run " << (run + 1) << "/" << num_runs << "... ";
         auto start = std::chrono::high_resolution_clock::now();
+        
+        // [DIFERENÇA CRUCIAL] Chama o método Baseline
         forest.fit_baseline(X, y); 
         
         auto end = std::chrono::high_resolution_clock::now();
@@ -63,14 +61,12 @@ int main(int argc, char** argv) {
         std::cout << ms << " ms\n";
     }
 
-    // 4. Salvar e Relatar
     std::cout << "\nSalvando modelo em: " << model_path << "\n";
     forest.save_model(model_path);
 
     double avg_ms = total_ms / num_runs;
     std::cout << "Media Baseline: " << avg_ms << " ms\n";
 
-    // CSV para logs
     std::string csv_name = "results_forest_baseline_train_" + get_filename_only(dataset_path) + ".csv";
     std::ofstream csv(csv_name);
     csv << "Metodo,Dataset,MaxSamples,Runs,TempoMedio(ms)\n";

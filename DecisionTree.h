@@ -5,8 +5,9 @@
 #include <memory>
 #include <utility>
 #include <iostream>
-#include <random> // Necessário para sortear features
-#include <algorithm> // std::shuffle
+#include <random>
+#include <algorithm>
+#include <numeric>
 
 struct Node {
     bool is_leaf = false;
@@ -34,11 +35,16 @@ public:
     DecisionTree(const DecisionTree&) = delete;
     DecisionTree& operator=(const DecisionTree&) = delete;
 
-    // --- ENTRADAS ---
-    void fit_baseline(const std::vector<std::vector<double>>& X,
+    // --- MÉTODOS DE TREINO (Ambos recebem FLAT memory agora) ---
+    
+    // Baseline: Recebe Flat, mas faz alocação dinâmica e sem chunks
+    void fit_baseline(const std::vector<double>& X_flat,
+                      int n_samples,
+                      int n_features,
                       const std::vector<int>& y,
                       const std::vector<int>& indices);
 
+    // Otimizado: Recebe Flat, usa Zero-Alloc e Chunks
     void fit_optimized(const std::vector<double>& X_flat,
                        int n_samples,
                        int n_features,
@@ -56,30 +62,43 @@ private:
     int max_depth;
     int min_samples_split;
     int chunk_size;
-    bool use_optimized_mode;
+    bool use_optimized_mode; 
 
+    // Buffer de Reuso (Apenas Otimizado)
     std::vector<std::pair<double, int>> sort_buffer; 
 
-    std::unique_ptr<Node> build_tree(const std::vector<std::vector<double>>* X_row,
-                                     const std::vector<double>* X_flat,
+    // Construtor Recursivo
+    std::unique_ptr<Node> build_tree(const std::vector<double>* X_flat,
                                      int n_total_samples,
                                      int n_features,
                                      const std::vector<int>& y,
                                      const std::vector<int>& indices,
                                      int depth);
 
-    // --- FUNÇÃO DE SPLIT (Agora com Feature Subsampling) ---
-    void find_best_split(const std::vector<std::vector<double>>* X_row,
-                         const std::vector<double>* X_flat,
-                         int n_total_samples,
-                         int n_features,
-                         const std::vector<int>& y,
-                         const std::vector<int>& indices,
-                         int& best_feature,
-                         double& best_threshold,
-                         std::vector<int>& left_idx,
-                         std::vector<int>& right_idx,
-                         double parent_gini);
+    // --- 1. BASELINE SPLIT (Flat Memory + Naive Logic) ---
+    // Agora lê de memória plana, mas sem otimização de chunks/buffer
+    void find_best_split_naive(const std::vector<double>& X_flat,
+                               int n_total_samples, // Necessário para offset
+                               int n_features,
+                               const std::vector<int>& y,
+                               const std::vector<int>& indices,
+                               int& best_feature,
+                               double& best_threshold,
+                               std::vector<int>& left_idx,
+                               std::vector<int>& right_idx,
+                               double parent_gini);
+
+    // --- 2. OPTIMIZED SPLIT (Flat Memory + Cache Friendly) ---
+    void find_best_split_optimized(const std::vector<double>& X_flat,
+                                   int n_total_samples,
+                                   int n_features,
+                                   const std::vector<int>& y,
+                                   const std::vector<int>& indices,
+                                   int& best_feature,
+                                   double& best_threshold,
+                                   std::vector<int>& left_idx,
+                                   std::vector<int>& right_idx,
+                                   double parent_gini);
 
     double calculate_gini(const std::vector<int>& labels) const;
     int majority_class(const std::vector<int>& labels) const;
