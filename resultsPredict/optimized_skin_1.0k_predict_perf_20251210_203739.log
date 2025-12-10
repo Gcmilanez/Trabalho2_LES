@@ -1,0 +1,25 @@
+# started on Wed Dec 10 20:37:39 2025
+
+
+ Performance counter stats for './forest_optimized_predict skin_segmentation.csv models/optimized_skin_1.0k.model 1000 5':
+
+         5.180.425      L1-dcache-load                                                     
+            93.786      L1-dcache-load-misses            #    1,81% of all L1-dcache accesses
+           117.355      l2_cache_accesses_from_dc_misses                                   
+            92.341      l2_cache_hits_from_dc_misses                                       
+            21.813      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+     <not counted>      branch-load                                                   (0,00%)
+     <not counted>      branch-load-misses                                            (0,00%)
+
+       0,002518651 seconds time elapsed
+
+       0,002593000 seconds user
+       0,000000000 seconds sys
+
+
+Some events weren't counted. Try disabling the NMI watchdog:
+	echo 0 > /proc/sys/kernel/nmi_watchdog
+	perf stat ...
+	echo 1 > /proc/sys/kernel/nmi_watchdog
