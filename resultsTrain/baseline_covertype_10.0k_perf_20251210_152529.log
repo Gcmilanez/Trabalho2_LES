@@ -1,0 +1,21 @@
+# started on Wed Dec 10 15:25:29 2025
+
+
+ Performance counter stats for './forest_baseline_train covertype_dataset.csv 10000 1 models/baseline_covertype_10.0k.model':
+
+    23.169.191.306      L1-dcache-load                                                       (71,42%)
+       620.563.968      L1-dcache-load-misses            #    2,68% of all L1-dcache accesses  (71,42%)
+       620.410.906      l2_cache_accesses_from_dc_misses                                     (71,42%)
+       557.865.251      l2_cache_hits_from_dc_misses                                         (71,42%)
+        63.111.633      l2_cache_misses_from_dc_misses                                       (71,42%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+    11.104.229.468      branch-load                                                          (71,44%)
+       838.532.979      branch-load-misses                                                   (71,44%)
+
+       8,791663426 seconds time elapsed
+
+       8,787327000 seconds user
+       0,003999000 seconds sys
+
+

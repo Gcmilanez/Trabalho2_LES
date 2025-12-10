@@ -1,0 +1,21 @@
+# started on Wed Dec 10 15:44:14 2025
+
+
+ Performance counter stats for './forest_baseline_predict optdigits.csv models/baseline_optdigits_1.8k.model 1797 5':
+
+        28.658.414      L1-dcache-load                                                       (41,95%)
+           311.438      L1-dcache-load-misses            #    1,09% of all L1-dcache accesses  (87,93%)
+           615.221      l2_cache_accesses_from_dc_misses                                   
+           559.584      l2_cache_hits_from_dc_misses                                       
+            41.735      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+        21.895.248      branch-load                                                          (58,05%)
+           340.461      branch-load-misses                                                   (12,07%)
+
+       0,009318679 seconds time elapsed
+
+       0,006265000 seconds user
+       0,003132000 seconds sys
+
+

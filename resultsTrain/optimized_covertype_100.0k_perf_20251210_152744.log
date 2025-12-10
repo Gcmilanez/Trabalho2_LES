@@ -1,0 +1,21 @@
+# started on Wed Dec 10 15:27:44 2025
+
+
+ Performance counter stats for './forest_optimized_train covertype_dataset.csv 100000 1 models/optimized_covertype_100.0k.model':
+
+    27.380.135.652      L1-dcache-load                                                       (71,40%)
+     4.350.069.695      L1-dcache-load-misses            #   15,89% of all L1-dcache accesses  (71,45%)
+     4.359.092.129      l2_cache_accesses_from_dc_misses                                     (71,45%)
+     3.774.394.303      l2_cache_hits_from_dc_misses                                         (71,45%)
+       499.354.399      l2_cache_misses_from_dc_misses                                       (71,45%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+    17.429.250.315      branch-load                                                          (71,43%)
+       279.056.465      branch-load-misses                                                   (71,38%)
+
+       9,222618571 seconds time elapsed
+
+       9,194044000 seconds user
+       0,027994000 seconds sys
+
+

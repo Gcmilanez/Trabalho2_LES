@@ -129,3 +129,5 @@ perf stat -e L1-dcache-load,L1-dcache-load-misses,l2_cache_accesses_from_dc_miss
 perf stat -e L1-dcache-load,L1-dcache-load-misses,l2_cache_accesses_from_dc_misses,l2_cache_hits_from_dc_misses,l2_cache_misses_from_dc_misses,l3_cache_accesses,l3_misses,branch-load,branch-load-misses \
 -o resultsPredict/optimized_covertype_581.0k_predict_perf_$(date +%Y%m%d_%H%M%S).log \
 -- ./forest_optimized_predict covertype_dataset.csv models/optimized_covertype_581.0k.model 581012 5
+
+
