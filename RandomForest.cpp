@@ -11,9 +11,7 @@ RandomForest::RandomForest(int n_trees, int max_depth, int min_samples_split, in
     trees.reserve(n_trees);
 }
 
-// ============================================================
-// FIT BASELINE (Memória Padrão, Bootstrap Padrão)
-// ============================================================
+// FIT BASELINE
 void RandomForest::fit_baseline(const std::vector<std::vector<double>>& X,
                                 const std::vector<int>& y)
 {
@@ -23,18 +21,14 @@ void RandomForest::fit_baseline(const std::vector<std::vector<double>>& X,
     indices.reserve(n_samples);
 
     for (int t = 0; t < n_trees; t++) {
-        bootstrap_indices(n_samples, indices); // Amostragem com reposição
-        
+        bootstrap_indices(n_samples, indices); 
         DecisionTree dt(max_depth, min_samples_split, chunk_size);
-        dt.fit_baseline(X, y, indices); // Chama método Baseline
-        
+        dt.fit_baseline(X, y, indices); 
         trees.push_back(std::move(dt));
     }
 }
 
-// ============================================================
-// FIT OTIMIZADO (Global Flat Memory, Cache Indices)
-// ============================================================
+// FIT OTIMIZADO
 void RandomForest::fit_optimized(const std::vector<std::vector<double>>& X,
                                  const std::vector<int>& y)
 {
@@ -42,7 +36,7 @@ void RandomForest::fit_optimized(const std::vector<std::vector<double>>& X,
     int n_samples = X.size();
     int n_features = X[0].size();
 
-    // 1. Preparação Global da Memória (Flattening)
+    // 1. Flattening Global (Column-Major)
     std::vector<double> X_flat_global(n_samples * n_features);
     for (int f = 0; f < n_features; f++) {
         for (int i = 0; i < n_samples; i++) {
@@ -50,22 +44,19 @@ void RandomForest::fit_optimized(const std::vector<std::vector<double>>& X,
         }
     }
 
-    // 2. Preparação de Índices
     init_base_indices(n_samples);
     std::vector<int> indices;
     indices.reserve(n_samples);
 
     for (int t = 0; t < n_trees; t++) {
         make_cache_friendly_indices(n_samples, t, indices);
-
         DecisionTree dt(max_depth, min_samples_split, chunk_size);
-        dt.fit_optimized(X_flat_global, n_samples, n_features, y, indices); // Chama método Otimizado
-        
+        dt.fit_optimized(X_flat_global, n_samples, n_features, y, indices);
         trees.push_back(std::move(dt));
     }
 }
 
-// Auxiliares (bootstrap, init_base...) e Serialização padrão
+// Helpers e Serialização padrão...
 void RandomForest::bootstrap_indices(int n_samples, std::vector<int>& out) const {
     static thread_local std::mt19937 gen(std::random_device{}());
     std::uniform_int_distribution<int> dist(0, n_samples - 1);

@@ -5,6 +5,8 @@
 #include <memory>
 #include <utility>
 #include <iostream>
+#include <random> // Necessário para sortear features
+#include <algorithm> // std::shuffle
 
 struct Node {
     bool is_leaf = false;
@@ -24,7 +26,6 @@ public:
                  int min_samples_split = 2, 
                  int chunk_size = DEFAULT_CHUNK_SIZE);
 
-    // Construtor Padrão
     DecisionTree() : DecisionTree(10, 2, DEFAULT_CHUNK_SIZE) {}
 
     // Movimentação
@@ -33,12 +34,11 @@ public:
     DecisionTree(const DecisionTree&) = delete;
     DecisionTree& operator=(const DecisionTree&) = delete;
 
-    // --- ENTRADA 1: BASELINE (Lento / Padrão) ---
+    // --- ENTRADAS ---
     void fit_baseline(const std::vector<std::vector<double>>& X,
                       const std::vector<int>& y,
                       const std::vector<int>& indices);
 
-    // --- ENTRADA 2: OTIMIZADO (Rápido / Flat) ---
     void fit_optimized(const std::vector<double>& X_flat,
                        int n_samples,
                        int n_features,
@@ -56,12 +56,10 @@ private:
     int max_depth;
     int min_samples_split;
     int chunk_size;
-    bool use_optimized_mode; // Apenas para saber qual fluxo seguir na recursão
+    bool use_optimized_mode;
 
-    // Buffer de Reuso (Apenas para o método otimizado)
     std::vector<std::pair<double, int>> sort_buffer; 
 
-    // Construtor Recursivo
     std::unique_ptr<Node> build_tree(const std::vector<std::vector<double>>* X_row,
                                      const std::vector<double>* X_flat,
                                      int n_total_samples,
@@ -70,30 +68,18 @@ private:
                                      const std::vector<int>& indices,
                                      int depth);
 
-    // --- IMPLEMENTAÇÃO 1: NAIVE ---
-    // Acesso Row-Major, Alocação Local (Ineficiente)
-    void find_best_split_naive(const std::vector<std::vector<double>>& X,
-                               int n_features,
-                               const std::vector<int>& y,
-                               const std::vector<int>& indices,
-                               int& best_feature,
-                               double& best_threshold,
-                               std::vector<int>& left_idx,
-                               std::vector<int>& right_idx,
-                               double parent_gini);
-
-    // --- IMPLEMENTAÇÃO 2: OTIMIZADA ---
-    // Acesso Column-Major, Reuso de Buffer, Chunks (Eficiente)
-    void find_best_split_optimized(const std::vector<double>& X_flat,
-                                   int n_total_samples,
-                                   int n_features,
-                                   const std::vector<int>& y,
-                                   const std::vector<int>& indices,
-                                   int& best_feature,
-                                   double& best_threshold,
-                                   std::vector<int>& left_idx,
-                                   std::vector<int>& right_idx,
-                                   double parent_gini);
+    // --- FUNÇÃO DE SPLIT (Agora com Feature Subsampling) ---
+    void find_best_split(const std::vector<std::vector<double>>* X_row,
+                         const std::vector<double>* X_flat,
+                         int n_total_samples,
+                         int n_features,
+                         const std::vector<int>& y,
+                         const std::vector<int>& indices,
+                         int& best_feature,
+                         double& best_threshold,
+                         std::vector<int>& left_idx,
+                         std::vector<int>& right_idx,
+                         double parent_gini);
 
     double calculate_gini(const std::vector<int>& labels) const;
     int majority_class(const std::vector<int>& labels) const;

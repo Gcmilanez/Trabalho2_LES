@@ -13,16 +13,23 @@ public:
                  int min_samples_split = 5,
                  int chunk_size = 256);
 
-    // --- MÉTODOS SEPARADOS ---
+    // --- MUDANÇA AQUI: Métodos Separados ---
+    
+    // Método 1: Baseline (Recebe dados brutos e treina lento)
     void fit_baseline(const std::vector<std::vector<double>>& X,
                       const std::vector<int>& y);
 
+    // Método 2: Otimizado (Faz o Flattening Global e treina rápido)
     void fit_optimized(const std::vector<std::vector<double>>& X,
                        const std::vector<int>& y);
 
+    // Predição (igual para ambos)
     std::vector<int> predict(const std::vector<std::vector<double>>& X) const;
+
+    // Serialização
     void save_model(const std::string& filename) const;
     void load_model(const std::string& filename);
+
     int get_num_trees() const { return n_trees; }
 
 private:
@@ -35,6 +42,7 @@ private:
     mutable std::vector<int> vote_buffer;
     std::vector<int> base_indices; 
     
+    // Helpers internos
     void bootstrap_indices(int n_samples, std::vector<int>& out) const; 
     void init_base_indices(int n_samples); 
     void make_cache_friendly_indices(int n_samples, int tree_id, std::vector<int>& out) const; 
