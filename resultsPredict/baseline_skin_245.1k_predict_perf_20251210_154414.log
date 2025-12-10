@@ -1,0 +1,21 @@
+# started on Wed Dec 10 15:44:14 2025
+
+
+ Performance counter stats for './forest_baseline_predict skin_segmentation.csv models/baseline_skin_245.1k.model 245057 5':
+
+       731.723.893      L1-dcache-load                                                       (70,64%)
+        15.526.141      L1-dcache-load-misses            #    2,12% of all L1-dcache accesses  (70,64%)
+        15.693.742      l2_cache_accesses_from_dc_misses                                     (70,64%)
+        14.898.541      l2_cache_hits_from_dc_misses                                         (70,63%)
+           317.644      l2_cache_misses_from_dc_misses                                       (72,90%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+       438.971.998      branch-load                                                          (73,41%)
+           994.180      branch-load-misses                                                   (71,14%)
+
+       0,165227130 seconds time elapsed
+
+       0,161415000 seconds user
+       0,003936000 seconds sys
+
+

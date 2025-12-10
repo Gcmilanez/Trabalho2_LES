@@ -1,0 +1,21 @@
+# started on Wed Dec 10 15:44:15 2025
+
+
+ Performance counter stats for './forest_optimized_predict covertype_dataset.csv models/optimized_covertype_100.0k.model 100000 5':
+
+     1.511.206.655      L1-dcache-load                                                       (70,26%)
+        89.813.059      L1-dcache-load-misses            #    5,94% of all L1-dcache accesses  (71,14%)
+        91.786.078      l2_cache_accesses_from_dc_misses                                     (72,13%)
+        82.558.825      l2_cache_hits_from_dc_misses                                         (72,24%)
+         6.868.546      l2_cache_misses_from_dc_misses                                       (72,24%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+     1.038.531.521      branch-load                                                          (71,49%)
+         4.631.506      branch-load-misses                                                   (70,50%)
+
+       0,411054498 seconds time elapsed
+
+       0,386993000 seconds user
+       0,024187000 seconds sys
+
+
