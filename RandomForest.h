@@ -50,3 +50,9 @@ private:
 };
 
 #endif // RANDOM_FOREST_H
+
+/*
+sudo sysctl -w kernel.perf_event_paranoid=0
+./train_all.sh
+./predict_all.sh
+*/

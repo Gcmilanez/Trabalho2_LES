@@ -1,0 +1,21 @@
+# started on Wed Dec 10 19:53:48 2025
+
+
+ Performance counter stats for './forest_baseline_predict covertype_dataset.csv models/baseline_covertype_581.0k.model 581012 5':
+
+     6.719.683.719      L1-dcache-load                                                       (71,34%)
+       130.853.277      L1-dcache-load-misses            #    1,95% of all L1-dcache accesses  (71,34%)
+       136.301.218      l2_cache_accesses_from_dc_misses                                     (71,34%)
+       133.700.042      l2_cache_hits_from_dc_misses                                         (71,34%)
+         2.465.819      l2_cache_misses_from_dc_misses                                       (71,53%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+     4.829.598.023      branch-load                                                          (71,66%)
+        17.519.492      branch-load-misses                                                   (71,46%)
+
+       1,530188360 seconds time elapsed
+
+       1,366014000 seconds user
+       0,164242000 seconds sys
+
+
