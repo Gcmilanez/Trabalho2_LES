@@ -1,7 +1,7 @@
 # ============================================================
-#   Makefile - Random Forest Baseline vs Otimizada
-#   - Treino + Salvamento
-#   - Load + Predicao
+#   Makefile - Random Forest (Unificada)
+#   - Treino + Salvamento (Baseline & Optimized)
+#   - Load + Predicao (Baseline & Optimized)
 # ============================================================
 
 CXX      := g++
@@ -10,16 +10,8 @@ LDFLAGS  :=
 
 OBJ_DIR  := obj
 
+# Cria o diretório obj se não existir
 $(shell mkdir -p $(OBJ_DIR))
-
-# ------------------------------------------------------------
-# Objetos base (compartilhados)
-# ------------------------------------------------------------
-
-BASE_OBJS := \
-	$(OBJ_DIR)/DecisionTree.o \
-	$(OBJ_DIR)/RandomForestBaseline.o \
-	$(OBJ_DIR)/RandomForestOptimized.o
 
 # ------------------------------------------------------------
 # 1) Executavel - Treino Baseline
@@ -27,7 +19,7 @@ BASE_OBJS := \
 
 FOREST_BASELINE_TRAIN_OBJS := \
 	$(OBJ_DIR)/DecisionTree.o \
-	$(OBJ_DIR)/RandomForestBaseline.o \
+	$(OBJ_DIR)/RandomForest.o \
 	$(OBJ_DIR)/main_forest_baseline.o
 
 forest_baseline_train: $(FOREST_BASELINE_TRAIN_OBJS)
@@ -40,7 +32,7 @@ forest_baseline_train: $(FOREST_BASELINE_TRAIN_OBJS)
 
 FOREST_OPTIMIZED_TRAIN_OBJS := \
 	$(OBJ_DIR)/DecisionTree.o \
-	$(OBJ_DIR)/RandomForestOptimized.o \
+	$(OBJ_DIR)/RandomForest.o \
 	$(OBJ_DIR)/main_forest_optimized.o
 
 forest_optimized_train: $(FOREST_OPTIMIZED_TRAIN_OBJS)
@@ -48,12 +40,12 @@ forest_optimized_train: $(FOREST_OPTIMIZED_TRAIN_OBJS)
 	@echo "✔ Executavel gerado: ./forest_optimized_train"
 
 # ------------------------------------------------------------
-# 3) Executavel - Predicao Baseline (load modelo)
+# 3) Executavel - Predicao Baseline
 # ------------------------------------------------------------
 
 FOREST_BASELINE_PREDICT_OBJS := \
 	$(OBJ_DIR)/DecisionTree.o \
-	$(OBJ_DIR)/RandomForestBaseline.o \
+	$(OBJ_DIR)/RandomForest.o \
 	$(OBJ_DIR)/main_predict_baseline.o
 
 forest_baseline_predict: $(FOREST_BASELINE_PREDICT_OBJS)
@@ -61,12 +53,12 @@ forest_baseline_predict: $(FOREST_BASELINE_PREDICT_OBJS)
 	@echo "✔ Executavel gerado: ./forest_baseline_predict"
 
 # ------------------------------------------------------------
-# 4) Executavel - Predicao Otimizada (load modelo)
+# 4) Executavel - Predicao Otimizada
 # ------------------------------------------------------------
 
 FOREST_OPTIMIZED_PREDICT_OBJS := \
 	$(OBJ_DIR)/DecisionTree.o \
-	$(OBJ_DIR)/RandomForestOptimized.o \
+	$(OBJ_DIR)/RandomForest.o \
 	$(OBJ_DIR)/main_predict_optimized.o
 
 forest_optimized_predict: $(FOREST_OPTIMIZED_PREDICT_OBJS)
@@ -77,25 +69,27 @@ forest_optimized_predict: $(FOREST_OPTIMIZED_PREDICT_OBJS)
 # Regras de compilacao dos .cpp -> obj/
 # ------------------------------------------------------------
 
+# Compila a Arvore de Decisão
 $(OBJ_DIR)/DecisionTree.o: DecisionTree.cpp DecisionTree.h
 	$(CXX) $(CXXFLAGS) -c DecisionTree.cpp -o $@
 
-$(OBJ_DIR)/RandomForestBaseline.o: RandomForestBaseline.cpp RandomForestBaseline.h DecisionTree.h
-	$(CXX) $(CXXFLAGS) -c RandomForestBaseline.cpp -o $@
+# Compila a Random Forest (Classe Unificada)
+$(OBJ_DIR)/RandomForest.o: RandomForest.cpp RandomForest.h DecisionTree.h
+	$(CXX) $(CXXFLAGS) -c RandomForest.cpp -o $@
 
-$(OBJ_DIR)/RandomForestOptimized.o: RandomForestOptimized.cpp RandomForestOptimized.h DecisionTree.h
-	$(CXX) $(CXXFLAGS) -c RandomForestOptimized.cpp -o $@
+# Compila os Mains
+# Note que agora todos dependem de RandomForest.h (unificado) e DataLoader.h
 
-$(OBJ_DIR)/main_forest_baseline.o: main_forest_baseline.cpp RandomForestBaseline.h DataLoader.h
+$(OBJ_DIR)/main_forest_baseline.o: main_forest_baseline.cpp RandomForest.h DataLoader.h
 	$(CXX) $(CXXFLAGS) -c main_forest_baseline.cpp -o $@
 
-$(OBJ_DIR)/main_forest_optimized.o: main_forest_optimized.cpp RandomForestOptimized.h DataLoader.h
+$(OBJ_DIR)/main_forest_optimized.o: main_forest_optimized.cpp RandomForest.h DataLoader.h
 	$(CXX) $(CXXFLAGS) -c main_forest_optimized.cpp -o $@
 
-$(OBJ_DIR)/main_predict_baseline.o: main_predict_baseline.cpp RandomForestBaseline.h DataLoader.h
+$(OBJ_DIR)/main_predict_baseline.o: main_predict_baseline.cpp RandomForest.h DataLoader.h
 	$(CXX) $(CXXFLAGS) -c main_predict_baseline.cpp -o $@
 
-$(OBJ_DIR)/main_predict_optimized.o: main_predict_optimized.cpp RandomForestOptimized.h DataLoader.h
+$(OBJ_DIR)/main_predict_optimized.o: main_predict_optimized.cpp RandomForest.h DataLoader.h
 	$(CXX) $(CXXFLAGS) -c main_predict_optimized.cpp -o $@
 
 # ------------------------------------------------------------

@@ -1,0 +1,21 @@
+# started on Mon Dec  8 13:20:24 2025
+
+
+ Performance counter stats for './forest_optimized_train adult_dataset.csv 1000 1 models/optimized_adult_1.0k.model':
+
+     5.949.703.765      L1-dcache-load                                                       (71,30%)
+        19.273.953      L1-dcache-load-misses            #    0,32% of all L1-dcache accesses  (71,30%)
+        19.559.124      l2_cache_accesses_from_dc_misses                                     (71,30%)
+        19.308.251      l2_cache_hits_from_dc_misses                                         (71,34%)
+           274.060      l2_cache_misses_from_dc_misses                                       (71,66%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+     2.493.703.336      branch-load                                                          (71,71%)
+        21.264.184      branch-load-misses                                                   (71,39%)
+
+       1,255092852 seconds time elapsed
+
+       1,251108000 seconds user
+       0,004009000 seconds sys
+
+

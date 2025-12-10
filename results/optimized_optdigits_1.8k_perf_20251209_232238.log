@@ -1,0 +1,21 @@
+# started on Tue Dec  9 23:22:38 2025
+
+
+ Performance counter stats for './forest_optimized_train optdigits.csv 1797 1 models/optimized_optdigits_1.8k.model':
+
+       695.842.518      L1-dcache-load                                                       (71,13%)
+        25.466.262      L1-dcache-load-misses            #    3,66% of all L1-dcache accesses  (71,81%)
+        25.489.716      l2_cache_accesses_from_dc_misses                                     (71,81%)
+        24.519.967      l2_cache_hits_from_dc_misses                                         (71,80%)
+           764.918      l2_cache_misses_from_dc_misses                                       (71,80%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+       421.337.022      branch-load                                                          (71,16%)
+        19.485.409      branch-load-misses                                                   (70,49%)
+
+       0,256274207 seconds time elapsed
+
+       0,248342000 seconds user
+       0,008011000 seconds sys
+
+
