@@ -22,19 +22,14 @@ $tests = @(
         Sizes = @(500, 1000, 1797)
     },
     @{
-        Name = "adult"
-        File = "adult_dataset.csv"
-        Sizes = @(1000, 10000, 45222)
-    },
-    @{
         Name = "skin"
         File = "skin_segmentation.csv"
         Sizes = @(1000, 10000, 245057)
     },
     @{
-        Name = "arrhythmia"
-        File = "arrhythmia.csv"
-        Sizes = @(100, 200, 452)
+        Name = "covertype"
+        File = "covertype.csv"
+        Sizes = @(1000, 100000, 581012)
     }
 )
 

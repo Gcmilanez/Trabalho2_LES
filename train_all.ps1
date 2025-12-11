@@ -37,11 +37,6 @@ $datasets = @(
         Sizes = @(1000, 10000, 245057)
     },
     @{
-        Name = "arrhythmia"
-        File = "arrhythmia.csv"
-        Sizes = @(100, 200, 452)
-    },
-    @{
         Name = "covertype"
         File = "covertype.csv"
         Sizes = @(1000, 100000, 581012)

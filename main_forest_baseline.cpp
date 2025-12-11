@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     const int N_TREES = 50;
     const int MAX_DEPTH = 8;
     const int MIN_SAMPLES_SPLIT = 5;
-    const int CHUNK_SIZE = 100; // Ignorado pelo baseline, mas passado para construtor
+    const int CHUNK_SIZE = 64; // Ignorado pelo baseline, mas passado para construtor
 
     RandomForest forest(N_TREES, MAX_DEPTH, MIN_SAMPLES_SPLIT, CHUNK_SIZE);
 

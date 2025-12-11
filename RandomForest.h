@@ -13,15 +13,20 @@ public:
                  int min_samples_split = 5,
                  int chunk_size = 256);
 
-    void fit_baseline(const std::vector<std::vector<double>>& X,
-                      const std::vector<int>& y);
+    // Métodos de Treino [MANTIDOS]
+    void fit_baseline(const std::vector<std::vector<double>>& X, const std::vector<int>& y);
+    void fit_optimized(const std::vector<std::vector<double>>& X, const std::vector<int>& y);
 
-    void fit_optimized(const std::vector<std::vector<double>>& X,
-                       const std::vector<int>& y);
-
+    // Predição Original (Compatibilidade)
     std::vector<int> predict(const std::vector<std::vector<double>>& X) const;
+
+    // [NOVO] Predição Otimizada para Dados Flat (Linear Memory Layout)
+    std::vector<int> predict_flat(const std::vector<double>& X_flat, int n_samples, int n_features) const;
+    
+    // Serialização [MANTIDO]
     void save_model(const std::string& filename) const;
     void load_model(const std::string& filename);
+    
     int get_num_trees() const { return n_trees; }
 
 private:
@@ -31,9 +36,10 @@ private:
     int chunk_size;
 
     std::vector<DecisionTree> trees;
-    mutable std::vector<int> vote_buffer;
     
+    // Métodos auxiliares [MANTIDOS]
     void bootstrap_indices(int n_samples, std::vector<int>& out) const; 
+    int majority_vote(const int* votes, int size) const;
     int majority_vote(const std::vector<int>& votes) const;
 };
 
