@@ -26,6 +26,7 @@ void train_test_split(const std::vector<std::vector<double>>& X,
     std::vector<std::size_t> indices(n);
     for (std::size_t i = 0; i < n; ++i) indices[i] = i;
 
+    // Aleatoriedade determinística para paridade de teste (opcional: tirar seed fixa)
     std::mt19937 gen(std::random_device{}());
     std::shuffle(indices.begin(), indices.end(), gen);
 
@@ -33,11 +34,8 @@ void train_test_split(const std::vector<std::vector<double>>& X,
 
     X_train.clear(); y_train.clear();
     X_test.clear();  y_test.clear();
-
-    X_train.reserve(n_train);
-    y_train.reserve(n_train);
-    X_test.reserve(n - n_train);
-    y_test.reserve(n - n_train);
+    X_train.reserve(n_train); y_train.reserve(n_train);
+    X_test.reserve(n - n_train); y_test.reserve(n - n_train);
 
     for (std::size_t i = 0; i < n; ++i) {
         std::size_t idx = indices[i];
@@ -51,8 +49,7 @@ void train_test_split(const std::vector<std::vector<double>>& X,
     }
 }
 
-double compute_accuracy(const std::vector<int>& y_true,
-                        const std::vector<int>& y_pred) {
+double compute_accuracy(const std::vector<int>& y_true, const std::vector<int>& y_pred) {
     if (y_true.size() != y_pred.size() || y_true.empty()) return 0.0;
     std::size_t correct = 0;
     for (std::size_t i = 0; i < y_true.size(); ++i) {
@@ -62,113 +59,70 @@ double compute_accuracy(const std::vector<int>& y_true,
 }
 
 int main(int argc, char** argv) {
-    std::cout << "========================================================\n";
-    std::cout << "   Random Forest Otimizada: LOAD + PREDICAO\n";
-    std::cout << "========================================================\n\n";
+    std::cout << "=== RF Otimizada: LOAD + PREDICAO (SINGLE RUN) ===\n";
 
     if (argc < 3) {
-        std::cerr << "Uso: " << argv[0]
-                  << " <arquivo_dataset.csv> <arquivo_modelo> [max_samples] [num_runs]\n";
-        std::cerr << "Exemplo: " << argv[0]
-                  << " covertype_dataset.csv optimized_covertype.model 100000 3\n";
+        std::cerr << "Uso: " << argv[0] << " <dataset.csv> <modelo> [max_samples] [runs_ignored]\n";
         return 1;
     }
 
     std::string dataset_path = argv[1];
     std::string model_path   = argv[2];
+    int max_samples = (argc >= 4) ? std::stoi(argv[3]) : 100000;
+    // Ignoramos argv[4] (num_runs) assim como o baseline faz
 
-    int max_samples = 100000;
-    if (argc >= 4) {
-        max_samples = std::stoi(argv[3]);
-    }
+    std::cout << "Dataset: " << dataset_path << "\n";
+    std::cout << "Modelo : " << model_path << "\n";
 
-    int num_runs = 3;
-    if (argc >= 5) {
-        num_runs = std::stoi(argv[4]);
-    }
-
-    std::cout << "Dataset   : " << dataset_path << "\n";
-    std::cout << "Modelo    : " << model_path << "\n";
-    std::cout << "MaxSamples: " << max_samples << "\n";
-    std::cout << "Num runs  : " << num_runs << "\n\n";
-
-    // Carregar dataset
+    // 1. Carregar Dados
     std::vector<std::vector<double>> X;
     std::vector<int> y;
-
-    std::cout << "Carregando dataset...\n";
     try {
         DataLoader::load_csv(dataset_path, X, y, max_samples);
-        if (X.empty()) {
-            std::cerr << "❌ Dataset vazio apos carregamento!\n";
-            return 1;
-        }
-        std::cout << "Dataset carregado: " << X.size() << " amostras, "
-                  << X[0].size() << " features\n\n";
+        if (X.empty()) return 1;
     } catch (const std::exception& e) {
-        std::cerr << "❌ Erro ao carregar dataset: " << e.what() << "\n";
+        std::cerr << "Erro: " << e.what() << "\n";
         return 1;
     }
 
+    // 2. Split
     std::vector<std::vector<double>> X_train, X_test;
     std::vector<int> y_train, y_test;
     train_test_split(X, y, X_train, y_train, X_test, y_test, 0.8);
+    std::cout << "Amostras Teste: " << X_test.size() << "\n\n";
 
-    std::cout << "Treino (nao usado aqui): " << X_train.size() << " amostras\n";
-    std::cout << "Teste                  : " << X_test.size()  << " amostras\n\n";
+    // 3. Carregar Modelo
+    RandomForest forest(1, 1, 1, 1);
+    forest.load_model(model_path);
 
-    double total_pred_ms = 0.0;
-    double total_acc     = 0.0;
-
-    for (int run = 0; run < num_runs; ++run) {
-        std::cout << "Iteracao " << (run + 1) << "/" << num_runs << "...\n";
-
-        RandomForest forest(1, 1, 1, 1); // parametros nao importam para load_model
-        std::cout << "  Carregando modelo...\n";
-        forest.load_model(model_path);
-
-        std::cout << "  Predizendo em conjunto de teste... ";
-        auto start_pred = std::chrono::high_resolution_clock::now();
-        std::vector<int> y_pred = forest.predict(X_test);
-        auto end_pred   = std::chrono::high_resolution_clock::now();
-
-        double pred_ms =
-            std::chrono::duration<double, std::milli>(end_pred - start_pred).count();
-        total_pred_ms += pred_ms;
-        std::cout << pred_ms << " ms\n";
-
-        double acc = compute_accuracy(y_test, y_pred);
-        total_acc += acc;
-        std::cout << "  Acuracia: " << std::fixed << std::setprecision(4)
-                  << acc * 100.0 << " %\n\n";
+    // 4. Preparar Memória Flat (Necessário para a otimização funcionar)
+    int n_samples = (int)X_test.size();
+    int n_features = (int)X_test[0].size();
+    std::vector<double> X_flat;
+    X_flat.reserve(n_samples * n_features);
+    for(const auto& row : X_test) {
+        X_flat.insert(X_flat.end(), row.begin(), row.end());
     }
 
-    double avg_pred_ms = total_pred_ms / num_runs;
-    double avg_acc     = total_acc     / num_runs;
+    // 5. Predição (Execução Única)
+    std::cout << "Iniciando predicao...\n";
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    std::vector<int> preds = forest.predict_flat(X_flat, n_samples, n_features);
+    
+    auto end = std::chrono::high_resolution_clock::now();
 
-    std::cout << "================= RESULTADOS PREDICAO ===================\n";
-    std::cout << std::setw(25) << "Tempo Predicao Medio (ms)"
-              << std::setw(20) << std::fixed << std::setprecision(4)
-              << avg_pred_ms << "\n";
+    // 6. Resultados
+    double ms = std::chrono::duration<double, std::milli>(end - start).count();
+    double acc = compute_accuracy(y_test, preds);
 
-    std::cout << std::setw(25) << "Acuracia Media (%)"
-              << std::setw(20) << std::fixed << std::setprecision(4)
-              << (avg_acc * 100.0) << "\n";
-    std::cout << "========================================================\n";
+    std::cout << "Tempo    : " << ms << " ms\n";
+    std::cout << "Acuracia : " << (acc * 100.0) << " %\n";
 
-    std::string csv_name = "results_predict_optimized_load_" +
-                           get_filename_only(dataset_path) + ".csv";
-    std::ofstream csv(csv_name);
-    csv << "Metodo,Dataset,Modelo,MaxSamples,NumRuns,TempoPredicaoMedio(ms),AcuraciaMedia\n";
-    csv << "RandomForestOptimizedPredict,"
-        << get_filename_only(dataset_path) << ","
-        << model_path << ","
-        << max_samples << ","
-        << num_runs << ","
-        << avg_pred_ms << ","
-        << avg_acc << "\n";
-    csv.close();
+    // CSV Simples (Append)
+    std::string csv_name = "results_predict_optimized_" + get_filename_only(dataset_path) + ".csv";
+    std::ofstream csv(csv_name, std::ios::app);
+    csv << get_filename_only(dataset_path) << "," << ms << "," << acc << "\n";
 
-    std::cout << "Resultados salvos em: " << csv_name << "\n";
     return 0;
 }

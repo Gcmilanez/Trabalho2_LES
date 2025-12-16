@@ -1,0 +1,21 @@
+# started on Tue Dec 16 19:12:29 2025
+
+
+ Performance counter stats for './forest_baseline_predict adult_dataset.csv models/baseline_adult_10.0k.model 10000 5':
+
+        52.136.641      L1-dcache-load                                                       (54,12%)
+         2.886.073      L1-dcache-load-misses            #    5,54% of all L1-dcache accesses  (54,10%)
+           948.044      l2_cache_accesses_from_dc_misses                                     (59,43%)
+         1.828.213      l2_cache_hits_from_dc_misses                                         (82,39%)
+           108.692      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+        38.958.750      branch-load                                                          (86,45%)
+           519.101      branch-load-misses                                                   (63,51%)
+
+       0,018319062 seconds time elapsed
+
+       0,018455000 seconds user
+       0,000000000 seconds sys
+
+

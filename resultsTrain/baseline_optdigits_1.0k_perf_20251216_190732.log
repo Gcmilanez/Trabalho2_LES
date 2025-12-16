@@ -1,0 +1,21 @@
+# started on Tue Dec 16 19:07:32 2025
+
+
+ Performance counter stats for './forest_baseline_train optdigits.csv 1000 1 models/baseline_optdigits_1.0k.model':
+
+       276.960.538      L1-dcache-load                                                       (71,51%)
+         2.638.817      L1-dcache-load-misses            #    0,95% of all L1-dcache accesses  (71,52%)
+         2.672.907      l2_cache_accesses_from_dc_misses                                     (71,52%)
+         2.113.358      l2_cache_hits_from_dc_misses                                         (71,51%)
+           586.498      l2_cache_misses_from_dc_misses                                       (71,51%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+       106.089.826      branch-load                                                          (71,22%)
+        11.170.661      branch-load-misses                                                   (71,21%)
+
+       0,113209543 seconds time elapsed
+
+       0,113340000 seconds user
+       0,000000000 seconds sys
+
+

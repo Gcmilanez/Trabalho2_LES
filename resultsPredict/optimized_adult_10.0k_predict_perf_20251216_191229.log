@@ -1,0 +1,21 @@
+# started on Tue Dec 16 19:12:29 2025
+
+
+ Performance counter stats for './forest_optimized_predict adult_dataset.csv models/optimized_adult_10.0k.model 10000 5':
+
+        51.749.618      L1-dcache-load                                                       (57,84%)
+           785.545      L1-dcache-load-misses            #    1,52% of all L1-dcache accesses  (57,84%)
+           612.150      l2_cache_accesses_from_dc_misses                                     (57,83%)
+           677.788      l2_cache_hits_from_dc_misses                                         (75,59%)
+           157.144      l2_cache_misses_from_dc_misses                                       (96,67%)
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+        39.474.541      branch-load                                                          (87,65%)
+           741.207      branch-load-misses                                                   (66,57%)
+
+       0,020049996 seconds time elapsed
+
+       0,020175000 seconds user
+       0,000000000 seconds sys
+
+

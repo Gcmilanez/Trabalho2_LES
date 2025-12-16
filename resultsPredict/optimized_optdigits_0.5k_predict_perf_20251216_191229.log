@@ -1,0 +1,25 @@
+# started on Tue Dec 16 19:12:29 2025
+
+
+ Performance counter stats for './forest_optimized_predict optdigits.csv models/optimized_optdigits_0.5k.model 500 5':
+
+        11.615.948      L1-dcache-load                                                       (71,42%)
+           240.699      L1-dcache-load-misses            #    2,07% of all L1-dcache accesses
+           269.069      l2_cache_accesses_from_dc_misses                                   
+           221.740      l2_cache_hits_from_dc_misses                                       
+            39.677      l2_cache_misses_from_dc_misses                                     
+   <not supported>      l3_cache_accesses                                           
+   <not supported>      l3_misses                                                   
+         6.894.115      branch-load                                                          (28,58%)
+     <not counted>      branch-load-misses                                            (0,00%)
+
+       0,005182886 seconds time elapsed
+
+       0,002662000 seconds user
+       0,002662000 seconds sys
+
+
+Some events weren't counted. Try disabling the NMI watchdog:
+	echo 0 > /proc/sys/kernel/nmi_watchdog
+	perf stat ...
+	echo 1 > /proc/sys/kernel/nmi_watchdog
